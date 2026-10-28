@@ -14,6 +14,7 @@ from .prefix import simulate
 from .report import build_report, to_markdown
 from .rules import load_rules
 from .tokenizers import get_backend
+from .whatif import SCENARIOS, run_scenarios
 
 
 def _cmd_analyze(args: argparse.Namespace) -> int:
@@ -31,12 +32,17 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         rules = ruleset.for_provider(provider)
         sim = simulate(group, backend.encode, rules, force_family=args.policy,
                        isolate_sessions=args.isolate_sessions)
+        scenarios = run_scenarios(
+            args.what_if or [], group, backend.encode, rules,
+            force_family=args.policy, isolate_sessions=args.isolate_sessions,
+        )
         dups = find_duplicates(
             group, backend.encode,
             min_tokens=args.dup_min_tokens, shingle=max(args.dup_min_tokens // 3, 8),
         )
         reports.append(
-            build_report(group, sim, dups, ruleset, rules, backend.name)
+            build_report(group, sim, dups, ruleset, rules, backend.name,
+                         scenarios=scenarios)
         )
 
     if len(reports) == 1:
@@ -102,6 +108,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_an.add_argument("--tokenizer", default="auto", choices=["auto", "exact", "estimate"])
     p_an.add_argument("--format", default="md", choices=["md", "json"])
     p_an.add_argument("--rules", default=None, help="path to a custom provider rules JSON")
+    p_an.add_argument("--what-if", action="append", choices=sorted(SCENARIOS),
+                      metavar="SCENARIO",
+                      help="also simulate a hypothetical scenario (repeatable): "
+                           "dense = traffic compressed so nothing expires "
+                           "(upper bound); dedup = exact duplicate requests "
+                           "collapsed. Non-mutating; does not change the "
+                           "as-is simulation.")
     p_an.add_argument("--isolate-sessions", action="store_true",
                       help="conservative scenario: also partition cache reuse by session_id "
                            "(not provider-documented behavior)")
