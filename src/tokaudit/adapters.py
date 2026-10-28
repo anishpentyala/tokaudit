@@ -150,6 +150,20 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
                 f"helicone row {out['id']}: request_body has no messages/prompt "
                 f"(got {type(obj.get('request_body')).__name__})"
             )
+        # Provider-reported usage (typed fields on HeliconeRequest, verified
+        # 2026-10-28): carried through for the report's simulated-vs-reported
+        # comparison; never fed back into the simulation.
+        usage = {}
+        for src_key, dst_key in (
+            ("prompt_tokens", "prompt_tokens"),
+            ("prompt_cache_read_tokens", "cache_read_tokens"),
+            ("prompt_cache_write_tokens", "cache_write_tokens"),
+        ):
+            v = obj.get(src_key)
+            if isinstance(v, (int, float)) and v is not None:
+                usage[dst_key] = int(v)
+        if usage:
+            out["actual_usage"] = usage
         return {k: v for k, v in out.items() if v is not None}
 
     return obj
