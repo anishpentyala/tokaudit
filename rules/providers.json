@@ -2,7 +2,8 @@
   "as_of": "2026-10-28",
   "sources": {
     "openai": "https://platform.openai.com/docs/guides/prompt-caching",
-    "anthropic": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching"
+    "anthropic": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+    "openai_compare": "https://platform.openai.com/docs/models/compare"
   },
   "providers": {
     "openai": {
@@ -26,7 +27,34 @@
         "Caching is on by default (implicit); explicit breakpoints available via prompt_cache_options (up to 4 writes per request)."
       ],
       "families": {
-        "gpt56_plus": {
+        "gpt61_sol_terra": {
+          "match": [
+            "gpt-6.1-sol",
+            "gpt-6.1-terra"
+          ],
+          "min_prefix_tokens": 1024,
+          "ttl_seconds": 1800,
+          "write_multiplier": 1.25,
+          "read_multiplier": 0.05,
+          "notes": [
+            "GPT-6.1 Sol and GPT-6.1 Terra specifically: cache reads 0.05x base input (prompt-caching guide, 2026-10-28).",
+            "List prices on the model comparison page 2026-10-28 confirm Sol: input $2.00, cached input $0.10, cache writes $2.50 per 1M tokens."
+          ]
+        },
+        "gpt6_verified_01x": {
+          "match": [
+            "gpt-6-astra",
+            "gpt-6-luna"
+          ],
+          "min_prefix_tokens": 1024,
+          "ttl_seconds": 1800,
+          "write_multiplier": 1.25,
+          "read_multiplier": 0.1,
+          "notes": [
+            "GPT-6 Astra and GPT-6 Luna specifically: 0.1x read / 1.25x write, confirmed by model comparison page list prices 2026-10-28 (Astra $10.00/$1.00/$12.50, Luna $0.10/$0.01/$0.125 per 1M)."
+          ]
+        },
+        "gpt56_plus_generic": {
           "match": [
             "gpt-5.6",
             "gpt-5.7",
@@ -37,15 +65,16 @@
           "min_prefix_tokens": 1024,
           "ttl_seconds": 1800,
           "write_multiplier": 1.25,
-          "read_multiplier": 0.1,
+          "savings_supported": false,
           "notes": [
-            "GPT-5.6 and later policy family (verified 2026-10-28)."
+            "GPT-5.6-and-later base policy is documented generically (1024-token minimum, 30-minute default lifetime, 1.25x writes), but the read rate is model-specific (guide: 0.1x on most, 0.05x on GPT-6.1 Sol/Terra). Only Astra, Luna, Sol and Terra are verified per model as of 2026-10-28, so other variants fail closed. Supply a verified read rate via --rules or accept a verified alias via --policy to include them."
           ]
         },
         "legacy": {
           "match": [
             "gpt-3",
             "gpt-4",
+            "gpt-4o",
             "o1",
             "o3",
             "o4",
@@ -58,7 +87,7 @@
           ],
           "savings_supported": false,
           "notes": [
-            "Pre-GPT-5.6 models: docs confirm no cache-write charge, but the cached-input read rate is model-dependent and could not be verified on 2026-10-28 (pricing page is JS-rendered). Savings are NOT estimated for this family until the user supplies verified rates via --rules."
+            "Pre-GPT-5.6 models: docs confirm no cache-write charge, but per-model cached-input read rates are unverified as of 2026-10-28 (the model comparison page lists current models only). Savings are NOT estimated for this family until the user supplies verified rates via --rules."
           ]
         }
       }
