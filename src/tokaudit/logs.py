@@ -47,6 +47,7 @@ class Request:
     breakpoints: List[int] = field(default_factory=list)
     ts: Optional[float] = None
     session_id: Optional[str] = None
+    cache_key: Optional[str] = None
 
     def canonical(self) -> str:
         return "\n".join(f"<{m.role}>\n{m.text}" for m in self.messages)
@@ -136,6 +137,11 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
         rid=rid, model=model, provider=provider,
         messages=messages, breakpoints=breakpoints, ts=ts,
         session_id=(str(obj["session_id"]) if obj.get("session_id") else None),
+        cache_key=(
+            str(obj.get("prompt_cache_key") or obj.get("cache_key"))
+            if (obj.get("prompt_cache_key") or obj.get("cache_key"))
+            else None
+        ),
     )
 
 
