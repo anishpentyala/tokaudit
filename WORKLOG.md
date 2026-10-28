@@ -1,0 +1,96 @@
+# Work log
+
+Factual record of work sessions. Newest first.
+
+## 2026-10-28 (session 2, ~08:19 PDT, Instinct assistant) - v0.2.0
+- Direction change from Anish via main: 70% daily usage is a TARGET for
+  meaningful work on the GitHub EC, not just a ceiling. Work sessions
+  should be substantive, not one short daily run.
+- Adapter grounding: LiteLLM SpendLogs fields verified against current
+  litellm/proxy/schema.prisma (model LiteLLM_SpendLogs) fetched today;
+  Langfuse Observations API v2 and Helicone /v1/request/query endpoint
+  shapes verified at endpoint level; field drift fails loudly, never
+  silently.
+- Built: adapters.py (litellm/langfuse/helicone normalization + strict
+  unknown-shape errors), session_id capture, line-numbered JSON errors,
+  Anthropic unknown-model exclusion (main's quality pass), multi-turn
+  simulation tests (growing history hits >40% savings; volatile timestamp
+  inside a prefix destroys all cache hits - the key adversarial case),
+  LiteLLM-shaped end-to-end fixture run.
+- 42 tests passing. Ran CLI on LiteLLM fixture: honest 0% (prompts below
+  the 1024 minimum) with correct duplicate and hoist recommendations.
+- Note: discovered test_force_family_and_unknown_model_fail_closed had
+  been silently dropped in last night's patch; re-added as
+  test_force_family_paths. Lesson: grep test names after bulk edits.
+
+## 2026-10-28 (session 1d, ~00:27 PDT, Instinct assistant) - fail-closed release blocker
+- Main ruled: no guessed billing numbers, no provider defaults on unknown
+  models, even labeled. Removed the unverified legacy read-discount (0.5x)
+  and TTL (600s) entirely.
+- Behavior now: pre-GPT-5.6 OpenAI models and any unrecognized model are
+  EXCLUDED from savings simulation (listed in the report with reasons);
+  token counts and duplicate analysis still cover them. --policy
+  gpt56_plus is the explicit-hypothetical escape hatch; forcing the
+  rate-less legacy family errors out and asks for --rules with verified
+  rates. Custom rules files count as explicit user parameters and run.
+- Anthropic unknown models assume the strictest known minimum (4096),
+  so savings can only be understated.
+- 28 tests passing, including fail-closed paths. Release blocker cleared
+  pending main's confirmation.
+
+## 2026-10-28 (session 1c, ~00:26 PDT, Instinct assistant) - policy families
+- Main's requirement implemented: models resolve to dated policy families
+  instead of GPT-5.6+ defaults applying to every log. openai now has
+  gpt56_plus (verified) and legacy (pre-GPT-5.6, no write charge per
+  official model-comparison table). Unrecognized models fall back to
+  provider defaults and are flagged "assumed" in the report; --policy
+  forces a family.
+- Legacy read discount (0.5x) and TTL (600s) are explicitly labeled
+  ASSUMPTION in rules notes + report: the live pricing page is
+  JS-rendered and could not be verified today. Only unverified numbers
+  in the tool; both overridable.
+- 3 new tests (legacy no-write-charge, forced family, unknown-model
+  note). 29 passing.
+
+## 2026-10-28 (session 1b, ~00:25 PDT, Instinct assistant) - correctness review response
+- Re-verified every shipped provider rule against the official pages
+  fetched today; saved verbatim dated excerpts in rules/EVIDENCE.md.
+  Reviewer suspicion of cross-provider conflation resolved: OpenAI's
+  GPT-5.6+ terms genuinely include 1.25x writes / 30-min minimum
+  lifetime / 0.1x reads (new-style terms; earlier OpenAI models have NO
+  write charge - now noted).
+- Confirmed delta billing is provider-documented: OpenAI "each input
+  token uses exactly one of uncached/cache-write/cached-read rate";
+  Anthropic total = cache_read + cache_creation + input tokens.
+- New documented caveats added to rules notes + README: OpenAI lifetime
+  is a minimum (simulation conservative), 128-token rounding on cached
+  reporting, cache-key settings (reasoning.effort, text.verbosity,
+  context_management), Anthropic billing breakdown.
+- Report labels changed: "Simulated savings (not observed billing)";
+  JSON keys renamed simulated_savings_*; new observation_note assumption.
+- README: bounded landscape claim (no more "nothing exists" phrasing),
+  new Privacy section (local-only, no uploads, redact secrets).
+- Added test_rules.py (dated rules, Anthropic per-model minimums,
+  generic fallback). 27 tests passing. Committed as v0.1.1 (66b83b2).
+
+## 2026-10-28 (session 1, ~00:20-01:00 PDT, Instinct assistant)
+- Researched the landscape: existing token tools are single-prompt
+  counters/minifiers (tokensaver, tok, tokentrimmer, tokenshrink) or
+  heavy neural compressors (LLMLingua family). No polished workload-level
+  prompt-cache savings analyzer found -> differentiation confirmed.
+- Verified current provider caching rules from live docs:
+  platform.openai.com/docs/guides/prompt-caching and
+  docs.claude.com/en/docs/build-with-claude/prompt-caching (both fetched
+  2026-10-28; rules with as_of date and sources in rules/providers.json).
+- Built v0.1.0: log parsing (OpenAI/Anthropic/generic JSONL, explicit
+  cache breakpoints), cache simulation with TTL/refresh/delta-write
+  billing, shingle-based duplicate detection, dated+overridable provider
+  rules, markdown + JSON reports, CLI (`analyze`, `rules`).
+- 24 tests, all passing (parsing, simulation correctness incl. TTL
+  expiry, refresh-on-read, wasted writes, dedup, estimator tolerance vs
+  tiktoken, CLI end-to-end on a fixture).
+- Fixed two real bugs found by tests: prefix-hash misalignment at message
+  boundaries and dedup min-length collapsing on periodic text.
+- Name check: `tokaudit` free on PyPI (404) as of 2026-10-28.
+- Status: private, local only. Not published anywhere. Awaiting Anish's
+  review before any repo goes public.
