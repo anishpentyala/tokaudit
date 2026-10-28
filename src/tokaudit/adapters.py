@@ -11,6 +11,9 @@ Grounding status (re-checked dates inline):
   day against BerriAI/litellm main schema.prisma (request_id, startTime,
   messages, model, custom_llm_provider, session_id all present).
 - Langfuse observation (Observations API v2, GET /api/public/v2/observations):
+  usageDetails key families pinned by Langfuse's provider-usage-key matrix
+  (github.com/langfuse/langfuse .agents/skills/add-model-price/references/
+  provider-usage-key-matrix.md, fetched 2026-10-28).
   validated 2026-10-28 against the authoritative Fern schema
   (github.com/langfuse/langfuse, fern/apis/server/definition/commons.yml,
   type ObservationV2; re-verified same day: core id/traceId/startTime/
@@ -40,6 +43,29 @@ from typing import Any, Dict
 
 def _is_litellm_spendlog(obj: Dict[str, Any]) -> bool:
     return "request_id" in obj and "startTime" in obj and "messages" in obj
+
+
+# Langfuse usageDetails key families, verbatim from the Langfuse provider
+# usage-key matrix (github.com/langfuse/langfuse,
+# .agents/skills/add-model-price/references/provider-usage-key-matrix.md,
+# fetched 2026-10-28; excerpt in rules/EVIDENCE.md).
+_LF_CACHE_READ_KEYS = ("input_cache_read", "cache_read_input_tokens",
+                       "input_cached_tokens")
+_LF_CACHE_WRITE_KEYS = ("input_cache_creation", "cache_write_tokens",
+                        "input_cache_write_tokens",
+                        "cache_creation_input_tokens",
+                        "input_cache_creation_5m", "input_cache_creation_1h")
+
+
+def _max_present(details: Dict[str, Any], keys) -> Optional[int]:
+    vals = []
+    for k in keys:
+        v = details.get(k)
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, int) and v >= 0:
+            vals.append(v)
+    return max(vals) if vals else None
 
 
 def _is_langfuse_observation(obj: Dict[str, Any]) -> bool:
@@ -124,6 +150,24 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
                 f"langfuse observation {out['id']}: input has unexpected shape "
                 f"({type(inp).__name__}); export the observation's messages"
             )
+        # Provider-reported usage from usageDetails. Key families pinned by
+        # Langfuse's own provider-usage-key matrix (see module docstring).
+        # Aliases in one bucket name the same semantic quantity, so take the
+        # max across present aliases instead of summing (no double count).
+        details = obj.get("usageDetails") or obj.get("usage_details")
+        if isinstance(details, dict):
+            read = _max_present(details, _LF_CACHE_READ_KEYS)
+            written = _max_present(details, _LF_CACHE_WRITE_KEYS)
+            prompt = _max_present(details, ("input", "input_tokens"))
+            usage = {}
+            if prompt is not None:
+                usage["prompt_tokens"] = prompt
+            if read is not None:
+                usage["cache_read_tokens"] = read
+            if written is not None:
+                usage["cache_write_tokens"] = written
+            if usage:
+                out["actual_usage"] = usage
         return {k: v for k, v in out.items() if v is not None}
 
     if _is_helicone_row(obj):
