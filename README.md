@@ -62,9 +62,10 @@ tokaudit analyze requests.jsonl --tokenizer estimate
 tokaudit rules                                  # show provider rules in use
 tokaudit analyze requests.jsonl --policy gpt6_verified_01x  # force a verified family
 tokaudit analyze requests.jsonl --isolate-sessions          # conservative scenario
-tokaudit analyze requests.jsonl --what-if dense             # upper-bound ceiling
+tokaudit analyze requests.jsonl --what-if dense             # compressed-timing scenario
 tokaudit analyze requests.jsonl --what-if dedup             # exact-duplicate collapse
 tokaudit analyze requests.jsonl --what-if anthropic-1h      # 1-hour TTL cost-benefit
+                                                # (Anthropic logs; use --provider anthropic on mixed logs)
 ```
 
 `--what-if` scenarios are hypothetical and non-mutating: they re-run the
