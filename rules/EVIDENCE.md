@@ -43,3 +43,18 @@ Source: https://docs.claude.com/en/docs/build-with-claude/prompt-caching
   last cache breakpoint)."
 - "For concurrent requests, note that a cache entry only becomes
   available after the first response begins."
+
+## Cache scope and routing (OpenAI, fetched 2026-10-28, same URL)
+
+Verbatim excerpts grounding the simulation's cache-namespace model:
+
+> "Caches are not shared across organizations and cannot be reused across regional processing boundaries."
+
+> "OpenAI handles routing automatically. Within an organization and processing region, routing for a given model depends on: ... A supplied `prompt_cache_key`, which separates cache reuse between groups of requests and helps optimize cache routing on models before GPT-5.6."
+
+> "On GPT-5.6 and later, OpenAI handles cache routing automatically; the key is not needed to optimize caching. You can use separate keys to maintain separate cache accounting for customers or users within your application."
+
+Implication for simulation: entries are shared within one organization + region
+per model; `prompt_cache_key` partitions reuse. App session IDs are NOT a
+documented cache boundary. `--isolate-sessions` is an explicit conservative
+scenario, labeled as such in output.
