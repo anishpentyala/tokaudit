@@ -35,16 +35,21 @@ def _dense(
     force_family: Optional[str],
     isolate_sessions: bool,
 ) -> Dict:
-    """Ceiling scenario: the same traffic compressed so nothing expires.
+    """Hypothetical compressed-timing scenario: same traffic, nothing expires.
 
     Timestamps are rescaled (order and relative spacing preserved) so the
     log's full span fits within the shortest cache lifetime among the
-    families in use. The result is an upper bound on cache benefit if
-    traffic were dense enough that entries never expired.
+    families in use. Within this simulator's model, shrinking gaps while
+    preserving order can only keep entries alive longer (a hit at gap g
+    survives any gap <= g, and refresh-on-read only extends lifetimes), so
+    its savings are never below the as-is simulation. That is a property of
+    the model, not of real traffic.
     """
     caveats = [
-        "Upper-bound scenario, not a prediction. Real hit rates also depend on "
-        "provider prefix routing, which is documented as best-effort.",
+        "Hypothetical timing scenario, not a prediction and not a real-world "
+        "upper bound: the never-worse property is proven only for this "
+        "simulator's model. Real hit rates also depend on provider prefix "
+        "routing (documented as best-effort), concurrency, and write pricing.",
         "Whether requests may safely be rescheduled or sent closer together is "
         "the caller's decision; the log cannot show dependencies between them. "
         "This scenario does not claim any rescheduling preserves application "
@@ -56,7 +61,7 @@ def _dense(
                        isolate_sessions=isolate_sessions)
         return {
             "name": "dense",
-            "title": "Dense-traffic ceiling",
+            "title": "Compressed-timing scenario",
             "result": _summarize(sim),
             "caveats": caveats,
             "notes": ["Log has requests without timestamps, so the as-is "
@@ -79,7 +84,7 @@ def _dense(
                        isolate_sessions=isolate_sessions)
         return {
             "name": "dense",
-            "title": "Dense-traffic ceiling",
+            "title": "Compressed-timing scenario",
             "result": _summarize(sim),
             "caveats": caveats,
             "notes": ["Log span already fits inside the shortest cache "
@@ -94,7 +99,7 @@ def _dense(
                    isolate_sessions=isolate_sessions)
     return {
         "name": "dense",
-        "title": "Dense-traffic ceiling",
+        "title": "Compressed-timing scenario",
         "result": _summarize(sim),
         "caveats": caveats,
         "notes": [
@@ -114,17 +119,21 @@ def _dedup(
 ) -> Dict:
     """Scenario: exact duplicate requests collapsed to their first occurrence.
 
-    A duplicate is exact only when the model and the full canonically
-    rendered prompt match. Sampling parameters are not part of the log
-    format, so two identical requests may still have been intentional
-    independent samples; that judgment stays with the user.
+    A duplicate is exact only when everything the log represents matches:
+    model, full canonically rendered prompt, prompt_cache_key, and
+    session_id. Sampling parameters are not part of the log format, so two
+    identical requests may still have been intentional independent samples;
+    that judgment stays with the user.
     """
     caveats = [
         "Collapsing duplicates is only safe when the duplicates are "
-        "interchangeable. The log records model and prompt but not sampling "
-        "parameters (e.g. temperature), so identical requests may have been "
-        "deliberate independent samples. Treat the saving as available only "
-        "after confirming the duplicates were redundant.",
+        "interchangeable. Distinctions the log represents (model, prompt, "
+        "prompt_cache_key, session_id) are preserved, but the log does not "
+        "record organization, region, or sampling parameters (e.g. "
+        "temperature), so identical requests may have been deliberate "
+        "independent samples or billed to different accounts. Treat the "
+        "saving as available only after confirming the duplicates were "
+        "redundant.",
         "Non-mutating: the as-is simulation above is unchanged; this scenario "
         "shows what the cost would have been without the exact repeats.",
     ]
@@ -132,7 +141,7 @@ def _dedup(
     kept: List[Request] = []
     dropped: List[str] = []
     for r in requests:
-        key = (r.model, r.canonical())
+        key = (r.model, r.canonical(), r.cache_key, r.session_id)
         if key in seen:
             dropped.append(r.rid)
         else:
