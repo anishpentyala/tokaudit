@@ -16,6 +16,11 @@ simulated estimates against dated provider rules, never observed billing.
   represents (model, prompt, prompt_cache_key, session_id), caveated
   that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
+- Provider-reported vs simulated usage comparison for Helicone exports
+  (schema-verified `prompt_cache_read_tokens` / `prompt_cache_write_tokens`
+  / `prompt_tokens` carried through as `actual_usage`; never fed back into
+  the simulation). Langfuse/LiteLLM comparison deferred with the grounding
+  gap documented rather than guessed.
 - `--prices SHEET.json`: optional user-supplied price sheet converting
   simulated units to dollar figures (per-1M rates for input/cached_input/
   cache_write). No prices ship with the tool; sheets fail closed on
