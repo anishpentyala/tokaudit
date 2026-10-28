@@ -16,6 +16,12 @@ simulated estimates against dated provider rules, never observed billing.
   represents (model, prompt, prompt_cache_key, session_id), caveated
   that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
+- `--prices SHEET.json`: optional user-supplied price sheet converting
+  simulated units to dollar figures (per-1M rates for input/cached_input/
+  cache_write). No prices ship with the tool; sheets fail closed on
+  unknown keys, missing or negative rates; models absent from the sheet
+  are excluded from dollar totals. Labeled as simulated, not observed
+  billing. Also available via `.tokaudit.toml`.
 - `.tokaudit.toml` config file for `analyze` defaults (auto-discovered in
   the current directory or via `--config`); CLI flags win; unknown keys
   and bad values fail closed. Needs tomllib (Python 3.11+) or `tomli`.
