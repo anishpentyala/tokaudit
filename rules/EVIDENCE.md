@@ -78,3 +78,13 @@ Per-model pricing cards, verbatim values:
 These confirm the documented multipliers per model. The page lists current
 models only; pre-GPT-5.6 cached-input rates remain unverified, so the legacy
 family stays fail-closed.
+
+## Minimum cacheable lengths (verified 2026-10-28)
+
+OpenAI prompt-caching doc (https://platform.openai.com/docs/guides/prompt-caching), verbatim:
+
+> "A prompt prefix must meet the model's minimum cacheable token length before it can be cached. Tokens in the OpenAI-provided hidden system content do not count toward this minimum. The minimum cacheable prompt length is 1,024 tokens for GPT-5.6 and later and varies by request settings for earlier models. See the model comparison for details."
+
+Model comparison page (https://platform.openai.com/docs/models/compare, rendered 2026-10-28): lists input / cached input / cache write rates per model but no minimum cacheable length column. Conclusion: for the GPT-5.6+ models tokaudit supports, the minimum is uniformly 1,024 tokens; no per-model map exists to encode. Earlier models ("varies by request settings") remain fail-closed in tokaudit because their read rates are unverifiable from current public pages.
+
+Note for interpretation: hidden OpenAI system tokens count toward breakpoints but not toward the minimum; tokaudit's canonical render contains only log-visible messages, so simulated eligibility is relative to visible tokens (covered by the report's render_note).
