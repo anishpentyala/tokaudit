@@ -11,6 +11,7 @@ from typing import List, Optional
 from .dedup import find_duplicates
 from .logs import load_log
 from .prefix import simulate
+from .prices import load_price_sheet
 from .report import build_report, to_markdown
 from .rules import load_rules
 from .config import load_config
@@ -29,6 +30,8 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     isolate = args.isolate_sessions or bool(cfg.get("isolate_sessions", False))
     what_if = args.what_if if args.what_if is not None else cfg.get("what_if")
     output = args.output if args.output is not None else cfg.get("output")
+    prices_path = args.prices if args.prices is not None else cfg.get("prices")
+    price_sheet = load_price_sheet(prices_path) if prices_path else None
 
     requests = load_log(args.log)
     ruleset = load_rules(rules_path)
@@ -54,7 +57,8 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         )
         reports.append(
             build_report(group, sim, dups, ruleset, rules, backend.name,
-                         scenarios=scenarios)
+                         scenarios=scenarios, price_sheet=price_sheet,
+                         price_source=prices_path)
         )
 
     if len(reports) == 1:
@@ -134,6 +138,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_an.add_argument("--dup-min-tokens", type=int, default=None,
                       help="minimum size of repeated blocks to report")
     p_an.add_argument("--output", default=None, help="write the report to a file")
+    p_an.add_argument("--prices", default=None,
+                      help="path to a user-supplied price sheet JSON "
+                           "({\"models\": {model: {\"input\", \"cached_input\", "
+                           "\"cache_write\"}}} per 1M tokens) to also report "
+                           "dollar figures; no prices ship with tokaudit")
     p_an.add_argument("--config", default=None,
                       help="path to a .tokaudit.toml config file (defaults: "
                            "./.tokaudit.toml when present; CLI flags win)")
