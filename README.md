@@ -119,6 +119,37 @@ generic `{"prompt": "..."}`. Optional `id`, `ts`/`timestamp`/`created`
 (epoch or ISO-8601). Explicit `cache_control` / `prompt_cache_breakpoint`
 markers in the log are honored.
 
+## Configuration
+
+`tokaudit analyze` reads defaults from `./.tokaudit.toml` when present
+(or from `--config PATH`). Known keys: `rules`, `policy`, `tokenizer`,
+`provider`, `format`, `dup_min_tokens`, `isolate_sessions`, `what_if`,
+`output`, `prices`. Unknown keys, invalid TOML and unreadable files fail
+closed with a clear error. Explicit CLI flags always win over the file.
+TOML parsing uses the standard library on Python 3.11+ and the bundled
+`tomli` dependency on older versions.
+
+## Provider-reported usage
+
+When an export carries real usage fields, the report adds a
+"Provider-reported vs simulated" section. Supported today: Helicone rows
+(`prompt_cache_read_tokens` / `prompt_cache_write_tokens` /
+`prompt_tokens`, typed fields on HeliconeRequest), Langfuse
+`usageDetails` (cache key families pinned by Langfuse's own
+provider-usage-key matrix, excerpt in `rules/EVIDENCE.md`; aliases
+within one bucket are de-duplicated by taking the maximum, not the sum),
+and LiteLLM SpendLogs (`prompt_tokens` only). Reported usage is never
+fed back into the simulation. Providers count with their own tokenizers
+and hidden context, so exact equality is not expected; large divergence
+is a signal to question log coverage or model assumptions.
+
+Two deliberate exclusions: LiteLLM cache usage stays uncompared because
+SpendLogs has no cache-read token field, and its `cache_hit` flag marks
+LiteLLM's own application-level cache, not the provider's prompt cache.
+And `examples/helicone_usage.jsonl` is a SYNTHETIC hand-written fixture
+whose usage values are tiktoken-derived reference numbers, not observed
+provider usage or billing data.
+
 ## Method and honest limits
 
 - Requests are rendered with a canonical template, not each provider's
