@@ -161,12 +161,36 @@ def _provider_from_dict(name: str, d: dict) -> ProviderRules:
 
 def load_rules(path: Optional[str] = None) -> Ruleset:
     use_path = path or _DEFAULT_PATH
-    with open(use_path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-    providers = {
-        name: _provider_from_dict(name, pdata)
-        for name, pdata in data.get("providers", {}).items()
-    }
+    try:
+        with open(use_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        raise SystemExit(f"rules file not found: {use_path}")
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"rules file {use_path}: invalid JSON: {exc}")
+    if not isinstance(data, dict) or not isinstance(data.get("providers"), dict):
+        raise SystemExit(
+            f"rules file {use_path}: expected an object with a 'providers' object"
+        )
+    providers = {}
+    for name, pdata in data["providers"].items():
+        if not isinstance(pdata, dict):
+            raise SystemExit(f"rules file {use_path}: provider '{name}' must be an object")
+        try:
+            rules = _provider_from_dict(name, pdata)
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(f"rules file {use_path}: provider '{name}': {exc}")
+        for label, ttl, wm, rm in (
+            [("provider", rules.ttl_seconds, rules.write_multiplier, rules.read_multiplier)]
+            + [(f"family '{f.name}'", f.ttl_seconds, f.write_multiplier, f.read_multiplier)
+               for f in rules.families.values()]
+        ):
+            if ttl < 0 or wm < 0 or rm < 0:
+                raise SystemExit(
+                    f"rules file {use_path}: provider '{name}' {label}: "
+                    "ttl_seconds and multipliers must be non-negative"
+                )
+        providers[name] = rules
     if not providers:
         raise SystemExit(f"rules file {use_path} defines no providers")
     return Ruleset(
