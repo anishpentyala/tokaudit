@@ -91,10 +91,11 @@ class ProviderRules:
             )
         for fam in self.families.values():
             for key in fam.match:
-                # Alias match: the model id is the alias itself or carries a
-                # suffix separated by a dash (e.g. dated snapshots), so a
-                # lookalike like "gpt-6-astral" never inherits Astra's rates.
-                if m == key or m.startswith(key + "-"):
+                # Exact documented identifiers only. Dated snapshots and other
+                # suffixed variants do NOT inherit rates without a documented
+                # provider guarantee, so they fail closed like any unknown
+                # model; the user can force a family explicitly with --policy.
+                if m == key:
                     return FamilyResolution(family=fam, assumed=False)
         return FamilyResolution(
             family=FamilyRules(
@@ -172,4 +173,4 @@ def load_rules(path: Optional[str] = None) -> Ruleset:
         as_of=str(data.get("as_of", "unknown")),
         sources={str(k): str(v) for k, v in data.get("sources", {}).items()},
         providers=providers,
-    )
+            )
