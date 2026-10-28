@@ -7,11 +7,15 @@ than silently mis-parsing.
 
 Grounding status (re-checked dates inline):
 - LiteLLM SpendLogs row: fields verified against litellm/proxy/
-  schema.prisma (model LiteLLM_SpendLogs) on 2026-10-28.
+  schema.prisma (model LiteLLM_SpendLogs) on 2026-10-28, re-verified same
+  day against BerriAI/litellm main schema.prisma (request_id, startTime,
+  messages, model, custom_llm_provider, session_id all present).
 - Langfuse observation (Observations API v2, GET /api/public/v2/observations):
   validated 2026-10-28 against the authoritative Fern schema
   (github.com/langfuse/langfuse, fern/apis/server/definition/commons.yml,
-  type ObservationV2). Facts that shape this adapter:
+  type ObservationV2; re-verified same day: core id/traceId/startTime/
+  projectId/type, sessionId in basic, input/output in io, model in model
+  group, all still current). Facts that shape this adapter:
   * core fields id/traceId/startTime/endTime/projectId/parentObservationId/type
     are always present; everything else is an optional field group;
   * `input`/`output` belong to the optional `io` group and are returned as
@@ -20,7 +24,8 @@ Grounding status (re-checked dates inline):
   Loud errors on mismatch.
 - Helicone request row (POST /v1/request/query): validated 2026-10-28
   against the authoritative HeliconeRequest type
-  (github.com/Helicone/helicone, packages/llm-mapper/types.ts). Rows are
+  (github.com/Helicone/helicone, packages/llm-mapper/types.ts;
+  re-verified same day, fields unchanged). Rows are
   FLAT: request_id, request_created_at, request_body (raw request JSON),
   response_body, provider, request_model/response_model. There is no nested
   request/response wrapper. request_body may arrive as a JSON string.
