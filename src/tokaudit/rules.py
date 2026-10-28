@@ -91,7 +91,10 @@ class ProviderRules:
             )
         for fam in self.families.values():
             for key in fam.match:
-                if key in m:
+                # Alias match: the model id is the alias itself or carries a
+                # suffix separated by a dash (e.g. dated snapshots), so a
+                # lookalike like "gpt-6-astral" never inherits Astra's rates.
+                if m == key or m.startswith(key + "-"):
                     return FamilyResolution(family=fam, assumed=False)
         return FamilyResolution(
             family=FamilyRules(
