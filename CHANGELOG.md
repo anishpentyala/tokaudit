@@ -16,6 +16,9 @@ simulated estimates against dated provider rules, never observed billing.
   represents (model, prompt, prompt_cache_key, session_id), caveated
   that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
+- `--what-if openai-12h`: documented OpenAI 12-hour cache option
+  (TTL 43200s, 2.5x writes vs 1.25x default, reads unchanged) as a
+  non-mutating scenario, mirroring `anthropic-1h`.
 - Provider-reported vs simulated usage comparison for Helicone exports
   (schema-verified `prompt_cache_read_tokens` / `prompt_cache_write_tokens`
   / `prompt_tokens` carried through as `actual_usage`; never fed back into
