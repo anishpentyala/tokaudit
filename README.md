@@ -59,8 +59,19 @@ tokaudit analyze requests.jsonl                 # markdown report to stdout
 tokaudit analyze requests.jsonl --format json   # machine-readable
 tokaudit analyze requests.jsonl --tokenizer estimate
 tokaudit rules                                  # show provider rules in use
-tokaudit analyze requests.jsonl --policy legacy   # force pre-GPT-5.6 policy family
+tokaudit analyze requests.jsonl --policy gpt6_verified_01x  # force a verified family
+tokaudit analyze requests.jsonl --isolate-sessions          # conservative scenario
 ```
+
+Savings are estimated only for exactly matched, documented model
+identifiers (e.g. `gpt-6-astra`, `gpt-6.1-sol`). Unknown models, dated
+snapshots and lookalike variants fail closed: they are excluded from
+savings but still analyzed for tokens and duplicates. Force a family with
+`--policy` to run an explicit hypothetical, or supply your own verified
+rates with `--rules`. Cache reuse is simulated per model and
+`prompt_cache_key` (documented provider scope); `--isolate-sessions`
+additionally partitions by `session_id` as a clearly labeled conservative
+scenario, not provider behavior.
 
 Log format: one JSON request per line. Adapters normalize LiteLLM
 SpendLogs rows, Langfuse observations and Helicone request rows
@@ -82,6 +93,8 @@ markers in the log are honored.
   caching is approximated as one write at the end of the prompt with
   intermediate message boundaries becoming readable.
 - Requests without timestamps are treated as if nothing expires.
+- One shared organization and region is assumed (logs carry no such
+  fields); mixed-account logs can overstate reuse.
 - Savings are in multiples of the base input rate, not dollars, so the
   result stays correct as prices change. Multiply by your current price.
 - The estimator backend is a heuristic; use `--tokenizer exact` for
