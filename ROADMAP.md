@@ -11,10 +11,14 @@ Prioritized next steps. Each item should ship with tests.
       comparison data, sourced and dated like the Anthropic map).
 - [x] Multi-turn conversation simulation via full-history prefix matching
       (tests incl. adversarial volatile-prefix case, v0.2.0).
-- [ ] Group simulation by session_id so unrelated sessions don't share a
-      cache namespace.
-- [ ] `--what-if`: re-simulate with volatile fields (timestamps, request
-      IDs) stripped from prefixes to show the upside of reordering.
+- [x] Cache namespaces grounded in documented provider scope (model +
+      prompt_cache_key); `--isolate-sessions` ships as a labeled
+      conservative scenario, not provider semantics (v0.2.x).
+- [x] `--what-if` ships as non-mutating `dense` (compressed timing) and
+      `dedup` (exact-duplicate collapse) scenarios. The original
+      volatile-field-stripping variant is dropped: it would imply
+      reordered prompts preserve semantics/quality, which we cannot
+      evidence.
 
 ## v0.3 - usability
 - [ ] HTML report with per-request table.
