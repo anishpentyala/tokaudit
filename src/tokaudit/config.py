@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 
 KNOWN_KEYS = {
     "rules", "policy", "tokenizer", "provider", "format",
-    "dup_min_tokens", "isolate_sessions", "what_if", "output",
+    "dup_min_tokens", "isolate_sessions", "what_if", "output", "prices",
 }
 
 
