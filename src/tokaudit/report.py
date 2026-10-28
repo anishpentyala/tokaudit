@@ -17,6 +17,7 @@ def build_report(
     ruleset: Ruleset,
     rules: ProviderRules,
     tokenizer_name: str,
+    scenarios: Optional[List[Dict]] = None,
 ) -> Dict:
     total_input = sum(c.total_input for c in sim.per_request)
     below_min = [
@@ -61,6 +62,7 @@ def build_report(
             {"id": rid, "model": model, "reason": reason} for rid, model, reason in sim.skipped
         ],
         "below_min_cacheable": below_min,
+        "what_if": scenarios or [],
         "recommendations": recommendations,
         "assumptions": {
             "rules_as_of": ruleset.as_of,
@@ -160,6 +162,22 @@ def to_markdown(report: Dict) -> str:
             )
     else:
         lines.append("No repeated blocks above the detection threshold.")
+    if report["what_if"]:
+        lines += ["", "## What-if scenarios (hypothetical, non-mutating)", ""]
+        for sc in report["what_if"]:
+            r = sc["result"]
+            lines.append(f"### {sc['title']}")
+            lines.append("")
+            lines.append(
+                f"- Simulated cost in this scenario: {r['simulated_units']:,.0f} units "
+                f"(savings {r['simulated_savings_units']:,.0f} units, "
+                f"{r['simulated_savings_pct']}%)"
+            )
+            for n in sc["notes"]:
+                lines.append(f"- {n}")
+            for c in sc["caveats"]:
+                lines.append(f"- Caveat: {c}")
+            lines.append("")
     lines += ["", "## Recommendations", ""]
     for r in report["recommendations"]:
         lines.append(f"- {r}")
