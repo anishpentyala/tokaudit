@@ -104,3 +104,26 @@ def test_examples_helicone_file_parses(capsys):
     pr = json.loads(capsys.readouterr().out)["provider_reported"]
     assert pr["requests_with_usage"] == 5
     assert pr["actual_cache_read_tokens"] == 18000
+
+
+def test_litellm_prompt_tokens_compared_cache_not_mapped(tmp_path, capsys):
+    rows = [{
+        "request_id": f"sp-{i}", "call_type": "completion",
+        "startTime": "2026-10-29T08:00:00Z", "model": "gpt-6-astra",
+        "custom_llm_provider": "openai", "session_id": "s-1",
+        "messages": [{"role": "system", "content": "policy " * 700},
+                     {"role": "user", "content": f"question {i}"}],
+        "prompt_tokens": 2900, "completion_tokens": 40,
+        "cache_hit": "True" if i else "",
+        "spend": 0.001, "total_tokens": 2940,
+    } for i in range(3)]
+    p = tmp_path / "spend.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in rows))
+    rc = main(["analyze", str(p), "--tokenizer", "estimate", "--format", "json"])
+    assert rc == 0
+    pr = json.loads(capsys.readouterr().out)["provider_reported"]
+    assert pr["requests_with_usage"] == 3
+    assert pr["actual_prompt_tokens"] == 8700
+    # cache_hit must not leak into cache comparison
+    assert pr["actual_cache_read_tokens"] == 0
+    assert pr["actual_cache_write_tokens"] == 0
