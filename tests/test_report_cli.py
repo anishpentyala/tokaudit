@@ -45,7 +45,7 @@ def test_report_savings_positive_on_fixture():
     ruleset = load_rules()
     backend = get_backend("estimate")
     rules = ruleset.for_provider("openai")
-    rules.families["gpt56_plus"].min_prefix_tokens = 100  # fixture prompts are below the real 1024 minimum
+    rules.families["gpt6_verified_01x"].min_prefix_tokens = 100  # fixture prompts are below the real 1024 minimum
     sim = simulate(reqs, backend.encode, rules)
     dups = find_duplicates(reqs, backend.encode, min_tokens=128, shingle=40)
     report = build_report(reqs, sim, dups, ruleset, rules, backend.name)
