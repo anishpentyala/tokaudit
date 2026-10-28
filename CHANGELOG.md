@@ -16,6 +16,12 @@ simulated estimates against dated provider rules, never observed billing.
   represents (model, prompt, prompt_cache_key, session_id), caveated
   that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
+- `--what-if anthropic-1h`: re-simulates Anthropic logs with the
+  documented 1-hour cache TTL (3600s, writes 2x base input vs 1.25x,
+  reads unchanged) to weigh pricier writes against the longer reuse
+  window. Anthropic-only (clean error elsewhere); caveats flag that
+  refresh-on-read for 1-hour entries is assumed from the default-cache
+  documentation.
 
 ### Fixed
 
