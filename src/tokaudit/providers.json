@@ -1,0 +1,122 @@
+{
+  "as_of": "2026-10-28",
+  "sources": {
+    "openai": "https://platform.openai.com/docs/guides/prompt-caching",
+    "anthropic": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+    "openai_compare": "https://platform.openai.com/docs/models/compare"
+  },
+  "providers": {
+    "openai": {
+      "min_prefix_tokens": 1024,
+      "ttl_seconds": 1800,
+      "write_multiplier": 1.25,
+      "read_multiplier": 0.1,
+      "refresh_on_read": false,
+      "enabled_by_default": true,
+      "max_explicit_breakpoints": 4,
+      "model_minimums": {},
+      "notes": [
+        "Minimum cacheable prefix 1024 tokens for GPT-5.6 and later; varies by model and request settings for earlier models.",
+        "Default minimum cache lifetime is 30 minutes; a 12-hour minimum lifetime writes at 2.5x base input (Responses API).",
+        "The lifetime is a MINIMUM: OpenAI may retain entries longer, so a hard-expiry simulation is conservative (real hit rates can be higher).",
+        "Cache reads 0.1x base input on most GPT-5.6+ models; 0.05x on GPT-6.1 Sol and GPT-6.1 Terra.",
+        "Write rates are totals, not surcharges: each input token is billed at exactly one of uncached / cache-write / cached-read rate.",
+        "Models before GPT-5.6 have no cache-write charge (read discount only) and use prompt_cache_retention instead of ttl.",
+        "Cached-token reporting rounds down to a multiple of 128 tokens.",
+        "The rendered prefix is the cache key: settings such as reasoning.effort, text.verbosity and context_management compaction can change it.",
+        "Caching is on by default (implicit); explicit breakpoints available via prompt_cache_options (up to 4 writes per request)."
+      ],
+      "families": {
+        "gpt61_sol_terra": {
+          "match": [
+            "gpt-6.1-sol",
+            "gpt-6.1-terra"
+          ],
+          "min_prefix_tokens": 1024,
+          "ttl_seconds": 1800,
+          "write_multiplier": 1.25,
+          "read_multiplier": 0.05,
+          "notes": [
+            "GPT-6.1 Sol and GPT-6.1 Terra specifically: cache reads 0.05x base input (prompt-caching guide, 2026-10-28).",
+            "List prices on the model comparison page 2026-10-28 confirm Sol: input $2.00, cached input $0.10, cache writes $2.50 per 1M tokens."
+          ]
+        },
+        "gpt6_verified_01x": {
+          "match": [
+            "gpt-6-astra",
+            "gpt-6-luna"
+          ],
+          "min_prefix_tokens": 1024,
+          "ttl_seconds": 1800,
+          "write_multiplier": 1.25,
+          "read_multiplier": 0.1,
+          "notes": [
+            "GPT-6 Astra and GPT-6 Luna specifically: 0.1x read / 1.25x write, confirmed by model comparison page list prices 2026-10-28 (Astra $10.00/$1.00/$12.50, Luna $0.10/$0.01/$0.125 per 1M)."
+          ]
+        },
+        "gpt56_plus_generic": {
+          "match": [
+            "gpt-5.6",
+            "gpt-5.7",
+            "gpt-5.8",
+            "gpt-5.9",
+            "gpt-6"
+          ],
+          "min_prefix_tokens": 1024,
+          "ttl_seconds": 1800,
+          "write_multiplier": 1.25,
+          "savings_supported": false,
+          "notes": [
+            "GPT-5.6-and-later base policy is documented generically (1024-token minimum, 30-minute default lifetime, 1.25x writes), but the read rate is model-specific (guide: 0.1x on most, 0.05x on GPT-6.1 Sol/Terra). Only Astra, Luna, Sol and Terra are verified per model as of 2026-10-28, so other variants fail closed. Supply a verified read rate via --rules or accept a verified alias via --policy to include them."
+          ]
+        },
+        "legacy": {
+          "match": [
+            "gpt-3",
+            "gpt-4",
+            "gpt-4o",
+            "o1",
+            "o3",
+            "o4",
+            "gpt-5.0",
+            "gpt-5.1",
+            "gpt-5.2",
+            "gpt-5.3",
+            "gpt-5.4",
+            "gpt-5.5"
+          ],
+          "savings_supported": false,
+          "notes": [
+            "Pre-GPT-5.6 models: docs confirm no cache-write charge, but per-model cached-input read rates are unverified as of 2026-10-28 (the model comparison page lists current models only). Savings are NOT estimated for this family until the user supplies verified rates via --rules."
+          ]
+        }
+      }
+    },
+    "anthropic": {
+      "min_prefix_tokens": 4096,
+      "ttl_seconds": 300,
+      "write_multiplier": 1.25,
+      "read_multiplier": 0.1,
+      "refresh_on_read": true,
+      "enabled_by_default": false,
+      "max_explicit_breakpoints": 4,
+      "model_minimums": {
+        "fable-5": 512,
+        "mythos-5": 512,
+        "opus-5": 512,
+        "mythos-preview": 2048,
+        "opus-4-7": 2048,
+        "opus-4-6": 4096,
+        "opus-4-5": 4096
+      },
+      "notes": [
+        "Default cache lifetime 5 minutes, refreshed on each cache read; a 1-hour duration writes at 2x base input.",
+        "Cache reads 0.1x base input (per-model exceptions in the source table).",
+        "Billing breakdown per request: total input = cache_read + cache_creation + input tokens; tokens after the last breakpoint are always uncached.",
+        "Caching requires cache_control breakpoints (explicit or top-level automatic).",
+        "Concurrent requests: a cache entry is only available after the first response begins.",
+        "For models not in the minimums table, the strictest known minimum (4096, Opus 4.5/4.6) is assumed, so savings are understated rather than overstated."
+      ]
+    }
+  }
+}
