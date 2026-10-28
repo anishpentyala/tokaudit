@@ -144,10 +144,13 @@ def test_force_family_paths():
     assert len(sim.skipped) == 2
 
     # Explicit user-chosen hypothetical: verified family forced on unknown model.
-    sim2 = simulate(reqs, ENC, rules, force_family="gpt56_plus")
+    sim2 = simulate(reqs, ENC, rules, force_family="gpt6_verified_01x")
     assert len(sim2.per_request) == 2
 
     with pytest.raises(SystemExit):
         simulate(reqs, ENC, rules, force_family="nope")
     with pytest.raises(SystemExit):
         simulate(reqs, ENC, rules, force_family="legacy")  # no verified rates
+    with pytest.raises(SystemExit):
+        # Generic GPT-5.6+ family: base policy documented, per-model read rate not.
+        simulate(reqs, ENC, rules, force_family="gpt56_plus_generic")
