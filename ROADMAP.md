@@ -24,15 +24,19 @@ Prioritized next steps. Each item should ship with tests.
       evidence.
 
 ## v0.3 - usability
-- [ ] HTML report with per-request table.
-- [ ] `tokaudit watch` mode for a growing log file.
-- [ ] Config file support (`.tokaudit.toml`) for rules overrides.
+- [x] `.tokaudit.toml` config file support (fail-closed validation).
+- [ ] HTML report with per-request table. (on hold: no concrete need)
+- [ ] `tokaudit watch` mode for a growing log file. (on hold: no concrete need)
+- [ ] `--prices SHEET.json`: convert units to dollars from a user-supplied
+      price sheet (model -> {input, cached_input, cache_write} per 1M).
+      Evaluated 2026-10-28: accepted for next session. No prices ship in
+      the tool; the sheet is user data, validated fail-closed.
 
-## Ideas to evaluate (not committed)
-- Anthropic 1-hour cache cost-benefit modeling.
-- Cost estimation in dollars when the user supplies a price sheet
-  (never ship dollar prices in the tool; they go stale).
-- GitHub Action that audits a fixture log on PRs.
+## Evaluated and closed
+- Anthropic 1-hour cache cost-benefit modeling -> shipped as
+  `--what-if anthropic-1h` (documented rates, caveated assumptions).
+- GitHub Action that audits a fixture log on PRs -> redundant: CI already
+  runs `analyze` over every fixture via pytest on each push.
 
 ## Explicitly out of scope
 - Rewriting or compressing prompts (changes model behavior; other tools
