@@ -24,7 +24,7 @@ def make_req(rid, user_text, ts):
                    messages=[Message("system", SYSTEM), Message("user", user_text)], ts=ts)
 
 
-def test_dense_ceiling_recovers_expired_hits():
+def test_dense_compressed_timing_recovers_expired_hits():
     # Two requests sharing a long prefix, arriving 2h apart (TTL is 1800s):
     # the second misses as-is but would hit if traffic were dense.
     reqs = [make_req("a", "first question", ts=0.0),
@@ -61,12 +61,12 @@ def test_dense_noop_without_timestamps():
     assert any("without timestamps" in n for n in sc["notes"])
 
 
-def test_dense_caveats_no_quality_claims():
+def test_dense_caveats_scoped_to_simulator_model():
     reqs = [make_req("a", "q1", ts=0.0), make_req("b", "q2", ts=7200.0)]
     (sc,) = run_scenarios(["dense"], reqs, ENC, OPENAI)
     joined = " ".join(sc["caveats"])
-    assert "Upper-bound" in joined
-    assert "does not claim" in joined  # no rescheduling-safety implication
+    assert "not a real-world" in joined  # bound claim scoped to the model
+    assert "does not claim" in joined    # no rescheduling-safety implication
 
 
 def test_dedup_collapses_only_exact_duplicates():
@@ -87,10 +87,33 @@ def test_dedup_noop_without_duplicates():
     assert any("No exact duplicate" in n for n in sc["notes"])
 
 
+def test_dedup_preserves_cache_key_and_session_distinctions():
+    base = dict(rid="x", user_text="same", ts=0.0)
+    reqs = [
+        make_req("a", "same", ts=0.0),
+        make_req("b", "same", ts=1.0),
+    ]
+    # Identical prompt but different cache keys / sessions: not duplicates.
+    import tokaudit.logs as L
+    k1 = L.Request(rid="k1", model="gpt-test", provider="openai",
+                   messages=[L.Message("system", SYSTEM), L.Message("user", "same")],
+                   ts=2.0, cache_key="one")
+    k2 = L.Request(rid="k2", model="gpt-test", provider="openai",
+                   messages=[L.Message("system", SYSTEM), L.Message("user", "same")],
+                   ts=3.0, cache_key="two")
+    s1 = L.Request(rid="s1", model="gpt-test", provider="openai",
+                   messages=[L.Message("system", SYSTEM), L.Message("user", "same")],
+                   ts=4.0, session_id="sess")
+    (sc,) = run_scenarios(["dedup"], reqs + [k1, k2, s1], ENC, OPENAI)
+    # Only "b" collapses (exact twin of "a"); k1/k2/s1 are kept distinct.
+    assert any("1 exact duplicate" in n and "b" in n for n in sc["notes"])
+
+
 def test_dedup_caveat_flags_sampling_params():
     reqs = [make_req("a", "q", ts=0.0), make_req("b", "q", ts=1.0)]
     (sc,) = run_scenarios(["dedup"], reqs, ENC, OPENAI)
-    assert any("sampling" in c.lower() for c in sc["caveats"])
+    joined = " ".join(sc["caveats"]).lower()
+    assert "sampling" in joined and "organization" in joined
     assert any("Non-mutating" in c for c in sc["caveats"])
 
 
