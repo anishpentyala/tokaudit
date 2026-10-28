@@ -61,7 +61,19 @@ tokaudit analyze requests.jsonl --tokenizer estimate
 tokaudit rules                                  # show provider rules in use
 tokaudit analyze requests.jsonl --policy gpt6_verified_01x  # force a verified family
 tokaudit analyze requests.jsonl --isolate-sessions          # conservative scenario
+tokaudit analyze requests.jsonl --what-if dense             # upper-bound ceiling
+tokaudit analyze requests.jsonl --what-if dedup             # exact-duplicate collapse
 ```
+
+`--what-if` scenarios are hypothetical and non-mutating: they re-run the
+simulation on a transformed copy of the log and report their own numbers
+next to the as-is simulation. `dense` rescales timestamps so nothing
+expires (an upper bound, not a prediction - real hits also depend on
+best-effort provider prefix routing); `dedup` collapses exact duplicate
+requests (same model and rendered prompt - only safe if the duplicates
+were redundant, which sampling parameters the log does not show can
+decide). Neither scenario claims reordering or collapsing real traffic is
+safe for your application.
 
 Savings are estimated only for exactly matched, documented model
 identifiers (e.g. `gpt-6-astra`, `gpt-6.1-sol`). Unknown models, dated
