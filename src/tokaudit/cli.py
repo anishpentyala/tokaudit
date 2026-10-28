@@ -111,8 +111,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_an.add_argument("--what-if", action="append", choices=sorted(SCENARIOS),
                       metavar="SCENARIO",
                       help="also simulate a hypothetical scenario (repeatable): "
-                           "dense = traffic compressed so nothing expires "
-                           "(upper bound); dedup = exact duplicate requests "
+                           "dense = compressed timing so nothing "
+                           "expires (hypothetical scenario); dedup = exact "
+                           "duplicate requests "
                            "collapsed. Non-mutating; does not change the "
                            "as-is simulation.")
     p_an.add_argument("--isolate-sessions", action="store_true",
