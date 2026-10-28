@@ -19,8 +19,10 @@ simulated estimates against dated provider rules, never observed billing.
 - Provider-reported vs simulated usage comparison for Helicone exports
   (schema-verified `prompt_cache_read_tokens` / `prompt_cache_write_tokens`
   / `prompt_tokens` carried through as `actual_usage`; never fed back into
-  the simulation). Langfuse/LiteLLM comparison deferred with the grounding
-  gap documented rather than guessed.
+  the simulation). Extended to Langfuse `usageDetails` using the key
+  families pinned by Langfuse's provider-usage-key matrix (aliases
+  de-duplicated by max, TTL-specific write keys included). LiteLLM
+  comparison deferred: no cache-read field in SpendLogs.
 - `--prices SHEET.json`: optional user-supplied price sheet converting
   simulated units to dollar figures (per-1M rates for input/cached_input/
   cache_write). No prices ship with the tool; sheets fail closed on
