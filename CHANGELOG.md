@@ -28,6 +28,14 @@ simulated estimates against dated provider rules, never observed billing.
 
 ### Fixed
 
+- **Packaging:** the default provider rules are now bundled inside the
+  installed package (`tokaudit/providers.json`, package-data). Previously
+  a pip-installed `tokaudit` looked for `rules/providers.json` relative to
+  the source tree and failed with "rules file not found" outside a
+  checkout. A sync test pins the bundled copy to the repo copy.
+  `tomli>=2` is now a runtime dependency on Python < 3.11 so
+  `.tokaudit.toml` works out of the box there; without it (or without
+  tomllib) config use exits with a clean message, not a traceback.
 - Custom rules files (`--rules`) now fail closed with clean errors:
   missing file, invalid JSON, wrong top-level shape, non-object provider
   entries, non-numeric fields, and negative TTL/multiplier values are all
