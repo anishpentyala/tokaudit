@@ -16,7 +16,7 @@ from .logs import Request
 from .prefix import SimulationResult, simulate
 from .rules import ProviderRules
 
-SCENARIOS = ("dense", "dedup")
+SCENARIOS = ("anthropic-1h", "dense", "dedup")
 
 
 def _summarize(sim: SimulationResult) -> Dict:
@@ -167,7 +167,68 @@ def _dedup(
     }
 
 
-_RUNNERS = {"dense": _dense, "dedup": _dedup}
+def _anthropic_1h(
+    requests: List[Request],
+    encode: Callable[[str], List[int]],
+    rules: ProviderRules,
+    force_family: Optional[str],
+    isolate_sessions: bool,
+) -> Dict:
+    """Scenario: Anthropic's documented 1-hour cache TTL instead of 5 minutes.
+
+    Anthropic documents 5-minute writes at 1.25x base input and 1-hour
+    writes at 2x base input, reads at 0.1x either way (rules/EVIDENCE.md).
+    The scenario re-simulates with ttl 3600s and write multiplier 2.0 so
+    the pricier writes and the longer reuse window are weighed together.
+    """
+    if rules.name != "anthropic":
+        raise SystemExit(
+            "--what-if anthropic-1h applies to Anthropic rules only "
+            f"(this group uses '{rules.name}')."
+        )
+    caveats = [
+        "Using the 1-hour TTL is a real request-time option in Anthropic's "
+        "API, but whether its writes pay off depends on actual reuse landing "
+        "5-60 minutes after each write; this simulation of your log cannot "
+        "predict future traffic.",
+        "Refresh-on-read is applied to 1-hour entries exactly as documented "
+        "for the default 5-minute cache; our evidence does not separately "
+        "document refresh behavior for 1-hour entries, so treat hits near "
+        "the end of the window as optimistic.",
+        "Non-mutating: the as-is simulation above is unchanged.",
+    ]
+    one_hour = replace(
+        rules,
+        ttl_seconds=3600,
+        write_multiplier=2.0,
+        families={
+            name: replace(fam, ttl_seconds=3600, write_multiplier=2.0)
+            for name, fam in rules.families.items()
+        },
+    )
+    sim = simulate(requests, encode, one_hour, force_family=force_family,
+                   isolate_sessions=isolate_sessions)
+    notes = [
+        "Re-simulated with the documented 1-hour cache option: TTL 3600s, "
+        "writes at 2x base input (vs 1.25x for the default 5-minute cache), "
+        "reads unchanged at 0.1x (rules/EVIDENCE.md, Anthropic prompt-caching "
+        "doc)."
+    ]
+    if sim.skipped:
+        notes.append(
+            f"{len(sim.skipped)} request(s) remain excluded (unverified "
+            "policy), same as the as-is simulation."
+        )
+    return {
+        "name": "anthropic-1h",
+        "title": "Anthropic 1-hour cache scenario",
+        "result": _summarize(sim),
+        "caveats": caveats,
+        "notes": notes,
+    }
+
+
+_RUNNERS = {"anthropic-1h": _anthropic_1h, "dense": _dense, "dedup": _dedup}
 
 
 def run_scenarios(
