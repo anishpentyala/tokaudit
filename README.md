@@ -66,6 +66,8 @@ tokaudit analyze requests.jsonl --what-if dense             # compressed-timing 
 tokaudit analyze requests.jsonl --what-if dedup             # exact-duplicate collapse
 tokaudit analyze requests.jsonl --what-if anthropic-1h      # 1-hour TTL cost-benefit
                                                 # (Anthropic logs; use --provider anthropic on mixed logs)
+tokaudit analyze requests.jsonl --what-if openai-12h        # 12-hour TTL cost-benefit
+                                                # (OpenAI logs; use --provider openai on mixed logs)
 ```
 
 `--prices SHEET.json` adds dollar figures from your own price sheet -
@@ -89,8 +91,11 @@ organization, not present in the log, can decide).
 `anthropic-1h` (Anthropic logs only) re-simulates with the documented
 1-hour cache option - TTL 3600s, writes at 2x base input instead of
 1.25x, reads unchanged - so pricier writes and the longer reuse window
-are weighed together. Neither scenario claims reordering or collapsing real traffic is
-safe for your application.
+are weighed together. `openai-12h` (OpenAI logs only) does
+the same for the documented 12-hour cache option - TTL 43200s, writes at
+2.5x ordinary input instead of 1.25x for the default 30-minute cache,
+reads unchanged (including per-model read discounts). No scenario claims
+reordering or collapsing real traffic is safe for your application.
 
 Savings are estimated only for exactly matched, documented model
 identifiers (e.g. `gpt-6-astra`, `gpt-6.1-sol`). Unknown models, dated
