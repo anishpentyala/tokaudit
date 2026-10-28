@@ -8,11 +8,13 @@ simulated estimates against dated provider rules, never observed billing.
 ### Added
 
 - `--what-if dense|dedup` scenarios: non-mutating hypothetical simulations
-  reported next to the as-is result. `dense` is an upper-bound ceiling
-  (timestamps rescaled so nothing expires; caveated that provider prefix
-  routing is best-effort and no rescheduling-safety claim is made).
-  `dedup` collapses exact duplicate requests (caveated that sampling
-  parameters are not in the log, so duplicates may be deliberate samples).
+  reported next to the as-is result. `dense` is a hypothetical compressed-timing
+  scenario (timestamps rescaled so nothing expires; the never-worse
+  property is proven only for the simulator's model, and the output says
+  so - no real-world bound, no rescheduling-safety claim). `dedup`
+  collapses exact duplicate requests across every distinction the log
+  represents (model, prompt, prompt_cache_key, session_id), caveated
+  that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
 
 ### Changed (behavioral, estimates can differ from v0.2.0) (behavioral, estimates can differ from v0.2.0)
