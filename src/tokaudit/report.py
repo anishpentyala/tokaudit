@@ -18,12 +18,40 @@ def build_report(
     rules: ProviderRules,
     tokenizer_name: str,
     scenarios: Optional[List[Dict]] = None,
+    price_sheet: Optional[Dict[str, Dict[str, float]]] = None,
+    price_source: Optional[str] = None,
 ) -> Dict:
     total_input = sum(c.total_input for c in sim.per_request)
     below_min = [
         c.rid for c in sim.per_request if c.total_input < rules.min_prefix_tokens
     ]
     recommendations = _recommendations(sim, dups, rules, below_min)
+    pricing = None
+    if price_sheet is not None:
+        from .prices import cost_usd
+        models_by_rid = {req.rid: req.model for req in requests}
+        priced = {"baseline_usd": 0.0, "simulated_usd": 0.0, "priced_requests": 0,
+                  "unpriced": []}
+        for cst in sim.per_request:
+            model = models_by_rid.get(cst.rid, "")
+            rates = price_sheet.get(model)
+            if rates is None:
+                priced["unpriced"].append(cst.rid)
+                continue
+            priced["priced_requests"] += 1
+            priced["baseline_usd"] += cost_usd(cst.total_input, 0, 0, rates)
+            priced["simulated_usd"] += cost_usd(cst.uncached, cst.read, cst.written, rates)
+        pricing = {
+            "source": price_source,
+            "baseline_usd": round(priced["baseline_usd"], 4),
+            "simulated_usd": round(priced["simulated_usd"], 4),
+            "simulated_savings_usd": round(priced["baseline_usd"] - priced["simulated_usd"], 4),
+            "priced_requests": priced["priced_requests"],
+            "unpriced_requests": priced["unpriced"],
+            "note": ("Dollar figures apply the user-supplied price sheet to "
+                     "simulated token flows; still simulated, not observed "
+                     "billing, and the sheet itself is not provider-verified."),
+        }
     return {
         "summary": {
             "requests": len(requests),
@@ -63,6 +91,7 @@ def build_report(
         ],
         "below_min_cacheable": below_min,
         "what_if": scenarios or [],
+        "pricing": pricing,
         "recommendations": recommendations,
         "assumptions": {
             "rules_as_of": ruleset.as_of,
@@ -151,6 +180,17 @@ def to_markdown(report: Dict) -> str:
         f"- Simulated savings (not observed billing): {s['simulated_savings_units']:,.0f} units "
         f"({s['simulated_savings_pct']}%)",
     ]
+    if report.get("pricing"):
+        p = report["pricing"]
+        lines.append(
+            f"- From your price sheet ({p['source']}): baseline \${p['baseline_usd']:,.4f}, "
+            f"with caching \${p['simulated_usd']:,.4f}, simulated savings "
+            f"\${p['simulated_savings_usd']:,.4f} "
+            f"({p['priced_requests']} requests priced"
+            + (f", {len(p['unpriced_requests'])} skipped - model not in sheet"
+               if p['unpriced_requests'] else "") + ")"
+        )
+        lines.append(f"  - {p['note']}")
     if s["wasted_write_tokens"]:
         lines.append(f"- Cache writes never re-read: {s['wasted_write_tokens']:,} tokens")
     lines += ["", "## Duplicate content across requests", ""]
