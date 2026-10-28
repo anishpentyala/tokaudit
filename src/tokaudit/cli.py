@@ -29,7 +29,8 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     reports = []
     for provider, group in sorted(groups.items()):
         rules = ruleset.for_provider(provider)
-        sim = simulate(group, backend.encode, rules, force_family=args.policy)
+        sim = simulate(group, backend.encode, rules, force_family=args.policy,
+                       isolate_sessions=args.isolate_sessions)
         dups = find_duplicates(
             group, backend.encode,
             min_tokens=args.dup_min_tokens, shingle=max(args.dup_min_tokens // 3, 8),
@@ -101,6 +102,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_an.add_argument("--tokenizer", default="auto", choices=["auto", "exact", "estimate"])
     p_an.add_argument("--format", default="md", choices=["md", "json"])
     p_an.add_argument("--rules", default=None, help="path to a custom provider rules JSON")
+    p_an.add_argument("--isolate-sessions", action="store_true",
+                      help="conservative scenario: also partition cache reuse by session_id "
+                           "(not provider-documented behavior)")
     p_an.add_argument("--dup-min-tokens", type=int, default=128,
                       help="minimum size of repeated blocks to report")
     p_an.add_argument("--output", default=None, help="write the report to a file")
