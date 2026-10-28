@@ -5,7 +5,17 @@ simulated estimates against dated provider rules, never observed billing.
 
 ## Unreleased
 
-### Changed (behavioral, estimates can differ from v0.2.0)
+### Added
+
+- `--what-if dense|dedup` scenarios: non-mutating hypothetical simulations
+  reported next to the as-is result. `dense` is an upper-bound ceiling
+  (timestamps rescaled so nothing expires; caveated that provider prefix
+  routing is best-effort and no rescheduling-safety claim is made).
+  `dedup` collapses exact duplicate requests (caveated that sampling
+  parameters are not in the log, so duplicates may be deliberate samples).
+  Unknown scenario names fail closed.
+
+### Changed (behavioral, estimates can differ from v0.2.0) (behavioral, estimates can differ from v0.2.0)
 
 - **Cache simulation namespaces corrected to documented provider scope.**
   v0.2.0 shared one cache across all requests in a log. Simulation now
