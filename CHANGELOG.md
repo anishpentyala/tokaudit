@@ -20,11 +20,13 @@ simulated estimates against dated provider rules, never observed billing.
 
 ### Added
 
-- Model matching is exact-alias only (a model id equals the alias or carries
-  a dash-separated suffix such as a dated snapshot); lookalike names never
-  inherit verified rates. Verified per model on 2026-10-28 via the prompt-
-  caching guide and model comparison list prices: GPT-6.1 Sol/Terra read
-  0.05x, GPT-6 Astra/Luna read 0.1x, all at 1.25x writes. The generic
+- Model matching accepts exact documented model identifiers only; dated
+  snapshots and other suffixed variants do NOT inherit rates (no documented
+  provider guarantee), so they fail closed like any unknown model unless the
+  user explicitly forces a family with --policy. Verified per model on
+  2026-10-28 via the prompt-caching guide and model comparison list prices:
+  GPT-6.1 Sol/Terra read 0.05x, GPT-6 Astra/Luna read 0.1x, all at 1.25x
+  writes. The generic
   GPT-5.6+ family keeps the documented base policy (1024-token minimum,
   30-minute default lifetime, 1.25x writes) but is excluded from savings
   because per-model read rates are unverified; unknown variants fail closed.
