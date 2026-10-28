@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tokaudit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Analyze LLM request logs to find wasted prompt tokens and quantify prompt-caching savings"
 readme = "README.md"
 requires-python = ">=3.9"
