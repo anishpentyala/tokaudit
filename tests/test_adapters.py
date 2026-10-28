@@ -169,3 +169,23 @@ def test_langfuse_fixture_end_to_end():
     assert reqs[0].session_id == "sess-1"
     assert reqs[0].messages[0].role == "user"
     assert reqs[1].messages[0].text == "plain single string prompt body"
+
+
+def test_helicone_usage_fields_carried_through():
+    req = parse_record(adapt(_helicone_row(
+        request_id="h-usage",
+        request_body={"model": "gpt-5.6", "prompt": "p"},
+    )) | {})
+    assert req.actual_usage is None  # base row has no usage fields
+
+
+def test_helicone_usage_extracted():
+    row = _helicone_row(request_id="h-u2",
+                        request_body={"model": "gpt-5.6", "prompt": "p"})
+    row["prompt_tokens"] = 1200
+    row["prompt_cache_read_tokens"] = 900
+    row["prompt_cache_write_tokens"] = 300
+    req = parse_record(adapt(row))
+    assert req.actual_usage == {"prompt_tokens": 1200,
+                                "cache_read_tokens": 900,
+                                "cache_write_tokens": 300}
