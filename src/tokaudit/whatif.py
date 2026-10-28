@@ -184,7 +184,8 @@ def _anthropic_1h(
     if rules.name != "anthropic":
         raise SystemExit(
             "--what-if anthropic-1h applies to Anthropic rules only "
-            f"(this group uses '{rules.name}')."
+            f"(this group uses '{rules.name}'). On a mixed log, select the "
+            "Anthropic group with --provider anthropic."
         )
     caveats = [
         "Using the 1-hour TTL is a real request-time option in Anthropic's "
