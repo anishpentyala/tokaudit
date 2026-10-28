@@ -68,11 +68,13 @@ tokaudit analyze requests.jsonl --what-if dedup             # exact-duplicate co
 `--what-if` scenarios are hypothetical and non-mutating: they re-run the
 simulation on a transformed copy of the log and report their own numbers
 next to the as-is simulation. `dense` rescales timestamps so nothing
-expires (an upper bound, not a prediction - real hits also depend on
-best-effort provider prefix routing); `dedup` collapses exact duplicate
-requests (same model and rendered prompt - only safe if the duplicates
-were redundant, which sampling parameters the log does not show can
-decide). Neither scenario claims reordering or collapsing real traffic is
+expires. Within the simulator's model this never reduces hits (a proven
+model property), but it is a hypothetical timing scenario, not a
+real-world bound - real hits also depend on best-effort provider prefix
+routing and concurrency. `dedup` collapses exact duplicate requests
+(same model, rendered prompt, prompt_cache_key and session_id - only
+safe if the duplicates were redundant, which sampling parameters and
+organization, not present in the log, can decide). Neither scenario claims reordering or collapsing real traffic is
 safe for your application.
 
 Savings are estimated only for exactly matched, documented model
