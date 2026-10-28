@@ -8,15 +8,28 @@ than silently mis-parsing.
 Grounding status (re-checked dates inline):
 - LiteLLM SpendLogs row: fields verified against litellm/proxy/
   schema.prisma (model LiteLLM_SpendLogs) on 2026-10-28.
-- Langfuse observation: endpoint shape (Observations API v2,
-  GET /api/public/v2/observations) verified 2026-10-28; exact field set
-  is from their public API docs and may drift. Loud errors on mismatch.
-- Helicone request row: query endpoint shape (POST /v1/request/query)
-  verified 2026-10-28; request/response wrapper field names may drift.
+- Langfuse observation (Observations API v2, GET /api/public/v2/observations):
+  validated 2026-10-28 against the authoritative Fern schema
+  (github.com/langfuse/langfuse, fern/apis/server/definition/commons.yml,
+  type ObservationV2). Facts that shape this adapter:
+  * core fields id/traceId/startTime/endTime/projectId/parentObservationId/type
+    are always present; everything else is an optional field group;
+  * `input`/`output` belong to the optional `io` group and are returned as
+    raw strings (JSON-serialized when structured);
+  * `type` distinguishes GENERATION (an LLM call) from SPAN/EVENT/etc.
+  Loud errors on mismatch.
+- Helicone request row (POST /v1/request/query): validated 2026-10-28
+  against the authoritative HeliconeRequest type
+  (github.com/Helicone/helicone, packages/llm-mapper/types.ts). Rows are
+  FLAT: request_id, request_created_at, request_body (raw request JSON),
+  response_body, provider, request_model/response_model. There is no nested
+  request/response wrapper. request_body may arrive as a JSON string.
+  Loud errors on mismatch.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict
 
 
@@ -25,11 +38,19 @@ def _is_litellm_spendlog(obj: Dict[str, Any]) -> bool:
 
 
 def _is_langfuse_observation(obj: Dict[str, Any]) -> bool:
-    return "input" in obj and ("startTime" in obj or "start_time" in obj)
+    # Core ObservationV2 fields; `input` is NOT required for detection because
+    # it sits in the optional `io` field group of the v2 export.
+    return (
+        "id" in obj
+        and ("startTime" in obj or "start_time" in obj)
+        and ("traceId" in obj or "projectId" in obj or "type" in obj)
+    )
 
 
 def _is_helicone_row(obj: Dict[str, Any]) -> bool:
-    return isinstance(obj.get("request"), dict) and "response" in obj
+    # Flat HeliconeRequest row; `request_id` alone collides with LiteLLM
+    # spend logs, which are matched first, so require the body field too.
+    return "request_id" in obj and "request_body" in obj
 
 
 def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
@@ -59,20 +80,40 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
         return {k: v for k, v in out.items() if v is not None}
 
     if _is_langfuse_observation(obj):
+        obs_type = obj.get("type")
+        if isinstance(obs_type, str) and obs_type != "GENERATION":
+            raise ValueError(
+                f"langfuse observation {obj.get('id')}: type {obs_type} is not an "
+                "LLM generation; filter the export to GENERATION observations"
+            )
+        if "input" not in obj:
+            raise ValueError(
+                f"langfuse observation {obj.get('id')}: no input field; re-export "
+                "with the `io` field group so the observation input is included"
+            )
         inp = obj["input"]
         out = {
             "id": obj.get("id"),
             "model": obj.get("model"),
             "ts": obj.get("startTime", obj.get("start_time")),
+            "session_id": obj.get("sessionId", obj.get("session_id")),
         }
+        # The v2 API returns input as a raw string; structured inputs arrive
+        # JSON-serialized, so try to recover messages from a string first.
         if isinstance(inp, str):
-            out["prompt"] = inp
-        elif isinstance(inp, list):
+            try:
+                inp = json.loads(inp)
+            except (json.JSONDecodeError, TypeError):
+                out["prompt"] = inp
+                return {k: v for k, v in out.items() if v is not None}
+        if isinstance(inp, list):
             out["messages"] = inp
         elif isinstance(inp, dict) and isinstance(inp.get("messages"), list):
             out["messages"] = inp["messages"]
             if inp.get("system") is not None:
                 out["system"] = inp["system"]
+        elif isinstance(inp, str):
+            out["prompt"] = inp
         else:
             raise ValueError(
                 f"langfuse observation {out['id']}: input has unexpected shape "
@@ -81,21 +122,28 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
         return {k: v for k, v in out.items() if v is not None}
 
     if _is_helicone_row(obj):
-        inner = obj["request"]
-        body = inner.get("body", inner)
+        body = obj.get("request_body")
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except json.JSONDecodeError:
+                body = None
         out = {
-            "id": obj.get("request_id", obj.get("id")),
-            "model": body.get("model", inner.get("model")),
-            "ts": obj.get("created_at", inner.get("created_at")),
-            "provider": inner.get("provider"),
+            "id": obj.get("request_id"),
+            "model": obj.get("request_model") or obj.get("model"),
+            "ts": obj.get("request_created_at", obj.get("created_at")),
+            "provider": obj.get("provider"),
         }
-        if isinstance(body.get("messages"), list):
+        if isinstance(body, dict) and isinstance(body.get("messages"), list):
             out["messages"] = body["messages"]
-        elif isinstance(body.get("prompt"), str):
+            if body.get("system") is not None:
+                out["system"] = body["system"]
+        elif isinstance(body, dict) and isinstance(body.get("prompt"), str):
             out["prompt"] = body["prompt"]
         else:
             raise ValueError(
-                f"helicone row {out['id']}: request body has no messages/prompt"
+                f"helicone row {out['id']}: request_body has no messages/prompt "
+                f"(got {type(obj.get('request_body')).__name__})"
             )
         return {k: v for k, v in out.items() if v is not None}
 
