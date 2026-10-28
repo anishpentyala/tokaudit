@@ -17,6 +17,14 @@ simulated estimates against dated provider rules, never observed billing.
   that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
 
+### Fixed
+
+- Custom rules files (`--rules`) now fail closed with clean errors:
+  missing file, invalid JSON, wrong top-level shape, non-object provider
+  entries, non-numeric fields, and negative TTL/multiplier values are all
+  rejected with the provider named, instead of leaking tracebacks or
+  simulating with nonsense rates.
+
 ### Changed (behavioral, estimates can differ from v0.2.0) (behavioral, estimates can differ from v0.2.0)
 
 - **Cache simulation namespaces corrected to documented provider scope.**
