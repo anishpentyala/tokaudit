@@ -57,3 +57,40 @@ def test_markdown_section(tmp_path):
                "--output", str(out)])
     assert rc == 0
     assert "Provider-reported vs simulated" in out.read_text()
+
+
+def _langfuse_obs(i, usage):
+    return {
+        "id": f"lf-{i}", "traceId": "t", "projectId": "p", "type": "GENERATION",
+        "startTime": "2026-10-29T08:00:00Z", "model": "claude-sonnet-4-6",
+        "input": {"messages": [
+            {"role": "system", "content": "policy " * 700},
+            {"role": "user", "content": f"question {i}"}]},
+        "usageDetails": usage,
+    }
+
+
+def test_langfuse_usage_details_extracted(tmp_path, capsys):
+    rows = [
+        _langfuse_obs(0, {"input": 2900, "output": 50,
+                          "cache_creation_input_tokens": 2400}),
+        _langfuse_obs(1, {"input": 2900, "output": 50,
+                          "cache_read_input_tokens": 2400,
+                          "input_cache_read": 2400}),  # alias: no double count
+    ]
+    p = tmp_path / "lf.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in rows))
+    rc = main(["analyze", str(p), "--tokenizer", "estimate", "--format", "json"])
+    assert rc == 0
+    pr = json.loads(capsys.readouterr().out)["provider_reported"]
+    assert pr["requests_with_usage"] == 2
+    assert pr["actual_cache_read_tokens"] == 2400
+    assert pr["actual_cache_write_tokens"] == 2400
+
+
+def test_langfuse_no_usage_details_means_no_section(tmp_path, capsys):
+    p = tmp_path / "lf.jsonl"
+    p.write_text(json.dumps(_langfuse_obs(0, None)))
+    rc = main(["analyze", str(p), "--tokenizer", "estimate", "--format", "json"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["provider_reported"] is None
