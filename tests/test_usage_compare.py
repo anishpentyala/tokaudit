@@ -94,3 +94,13 @@ def test_langfuse_no_usage_details_means_no_section(tmp_path, capsys):
     rc = main(["analyze", str(p), "--tokenizer", "estimate", "--format", "json"])
     assert rc == 0
     assert json.loads(capsys.readouterr().out)["provider_reported"] is None
+
+
+def test_examples_helicone_file_parses(capsys):
+    import pathlib
+    ex = pathlib.Path(__file__).resolve().parent.parent / "examples" / "helicone_usage.jsonl"
+    rc = main(["analyze", str(ex), "--tokenizer", "estimate", "--format", "json"])
+    assert rc == 0
+    pr = json.loads(capsys.readouterr().out)["provider_reported"]
+    assert pr["requests_with_usage"] == 5
+    assert pr["actual_cache_read_tokens"] == 18000
