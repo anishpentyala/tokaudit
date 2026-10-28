@@ -88,3 +88,20 @@ OpenAI prompt-caching doc (https://platform.openai.com/docs/guides/prompt-cachin
 Model comparison page (https://platform.openai.com/docs/models/compare, rendered 2026-10-28): lists input / cached input / cache write rates per model but no minimum cacheable length column. Conclusion: for the GPT-5.6+ models tokaudit supports, the minimum is uniformly 1,024 tokens; no per-model map exists to encode. Earlier models ("varies by request settings") remain fail-closed in tokaudit because their read rates are unverifiable from current public pages.
 
 Note for interpretation: hidden OpenAI system tokens count toward breakpoints but not toward the minimum; tokaudit's canonical render contains only log-visible messages, so simulated eligibility is relative to visible tokens (covered by the report's render_note).
+
+## Langfuse usageDetails key families
+Source: https://github.com/langfuse/langfuse/blob/main/.agents/skills/add-model-price/references/provider-usage-key-matrix.md
+(fetched 2026-10-28; Langfuse's own reference for the usage keys its
+ingestion persists per provider)
+
+- OpenAI: Cache read keys "input_cached_tokens, input_cache_read,
+  cache_read_input_tokens"; explicit cache write "input_cache_creation,
+  cache_write_tokens, input_cache_write_tokens".
+- Anthropic / Bedrock Claude: Cache write "cache_creation_input_tokens,
+  input_cache_creation"; five-minute write "input_cache_creation_5m";
+  one-hour write "input_cache_creation_1h"; cache read
+  "cache_read_input_tokens, input_cache_read, input_cached_tokens".
+- "The TTL-specific prices can differ, so do not treat the 5-minute and
+  1-hour keys as equal-price aliases."
+- The matrix instructs: "Never infer cache writes from ordinary input or
+  from the presence of a cache read."
