@@ -1,5 +1,7 @@
 # tokaudit
 
+[![tests](https://github.com/anishpentyala/tokaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/anishpentyala/tokaudit/actions/workflows/ci.yml)
+
 Audit LLM request logs for token waste and quantify prompt-caching savings.
 
 Most teams running LLM workloads pay for the same prompt prefix over and
