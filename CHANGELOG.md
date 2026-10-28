@@ -22,7 +22,9 @@ simulated estimates against dated provider rules, never observed billing.
   the simulation). Extended to Langfuse `usageDetails` using the key
   families pinned by Langfuse's provider-usage-key matrix (aliases
   de-duplicated by max, TTL-specific write keys included). LiteLLM
-  comparison deferred: no cache-read field in SpendLogs.
+  SpendLogs compare typed `prompt_tokens` only; cache comparison stays
+  closed (`cache_hit` is LiteLLM's application-level cache flag, not
+  provider prompt-cache usage).
 - `--prices SHEET.json`: optional user-supplied price sheet converting
   simulated units to dollar figures (per-1M rates for input/cached_input/
   cache_write). No prices ship with the tool; sheets fail closed on
