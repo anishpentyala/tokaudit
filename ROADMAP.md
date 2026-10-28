@@ -7,8 +7,11 @@ Prioritized next steps. Each item should ship with tests.
       from savings (done in v0.2.0).
 - [x] Parse real proxy/gateway export formats (LiteLLM, Helicone, Langfuse
       traces) in addition to raw JSONL. (v0.2.0 adapters)
-- [ ] Per-model minimum cacheable lengths for OpenAI models (model
-      comparison data, sourced and dated like the Anthropic map).
+- [x] Per-model minimum cacheable lengths for OpenAI models: closed as
+      no-variation. Doc (2026-10-28) states a uniform 1,024-token minimum
+      for GPT-5.6 and later; the compare page lists no per-model minimums.
+      Earlier models vary by request settings and stay fail-closed
+      (rules/EVIDENCE.md).
 - [x] Multi-turn conversation simulation via full-history prefix matching
       (tests incl. adversarial volatile-prefix case, v0.2.0).
 - [x] Cache namespaces grounded in documented provider scope (model +
