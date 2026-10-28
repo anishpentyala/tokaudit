@@ -6,27 +6,27 @@
 - Provider rules: openai (rules as of 2026-10-28)
 - Tokenizer: estimate
 - Requests in savings simulation: 5
-- Total input tokens: 5,413
-- Baseline cost: 5,413 units
-- With caching: 1,830 units
-- Simulated savings (not observed billing): 3,583 units (66.2%)
+- Total input tokens: 7,018
+- Baseline cost: 7,018 units
+- With caching: 2,360 units
+- Simulated savings (not observed billing): 4,658 units (66.4%)
 - Cache writes never re-read: 40 tokens
 
 ## Duplicate content across requests
 
-- ~1070 tokens x 5 requests (4280 repeated tokens): "You are the support agent for Northwind Books. Policy: orders ship within two business days; returns..."
+- ~1391 tokens x 5 requests (5564 repeated tokens): "You are the support agent for Northwind Books. Policy: orders ship within two business days; returns..."
 
 ## Provider-reported vs simulated
 
 - Requests with provider usage fields: 5
-- Cache read tokens: provider 18,000 vs simulated 4,292
-- Cache write tokens: provider 4,500 vs simulated 1,121
-- Provider prompt tokens: 23,070
+- Cache read tokens: provider 4,476 vs simulated 5,576
+- Cache write tokens: provider 1,119 vs simulated 1,442
+- Provider prompt tokens: 5,634
 - Provider-reported fields come from the export (Helicone prompt_cache_read_tokens / prompt_cache_write_tokens / prompt_tokens), counted with the provider's tokenizer and hidden context; the simulation re-tokenizes a canonical render. Exact equality is not expected - treat large divergence as a signal to question coverage or model assumptions, not as a billing discrepancy by itself.
 
 ## Recommendations
 
-- Hoist 1 repeated block(s) (~4280 repeated tokens) into one stable cached prefix (system or developer message) instead of resending them per request.
+- Hoist 1 repeated block(s) (~5564 repeated tokens) into one stable cached prefix (system or developer message) instead of resending them per request.
 - Some cached prefixes were never re-used. Only write prefixes you expect to reuse within the cache lifetime; a single-use write costs more than sending uncached.
 - Keep volatile fields (timestamps, request IDs) out of the cached prefix to preserve the hit rate this simulation estimates.
 
