@@ -259,4 +259,4 @@ def simulate(
         wasted_write_tokens=wasted,
         notes=notes,
         skipped=skipped,
-          )
+    )
