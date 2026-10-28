@@ -51,3 +51,15 @@ def test_report_savings_positive_on_fixture():
     report = build_report(reqs, sim, dups, ruleset, rules, backend.name)
     assert report["summary"]["simulated_savings_pct"] > 0
     assert report["duplicate_blocks"], "fixture system prompt should be flagged as repeated"
+
+
+def test_quickstart_example_reproduces(capsys):
+    import os
+    ex = os.path.join(os.path.dirname(__file__), "..", "examples", "quickstart.jsonl")
+    rc = main(["analyze", ex, "--tokenizer", "estimate", "--format", "json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["summary"]["requests"] == 6
+    assert data["summary"]["requests_skipped_unverified_policy"] == 0
+    assert data["summary"]["simulated_savings_pct"] > 50
+    assert data["duplicate_blocks"], "example should surface the shared policy block"
