@@ -148,3 +148,49 @@ def test_cli_what_if_json_and_markdown(tmp_path, capsys):
                "--what-if", "dense", "--output", str(out)])
     assert rc == 0
     assert "What-if scenarios (hypothetical, non-mutating)" in out.read_text()
+
+
+ANTH = ProviderRules(
+    name="anthropic", min_prefix_tokens=32, ttl_seconds=300,
+    write_multiplier=1.25, read_multiplier=0.1,
+    refresh_on_read=True, enabled_by_default=False,
+)
+
+
+def make_anth(rid, user_text, ts):
+    from tokaudit.logs import Message, Request
+    return Request(rid=rid, model="claude-test", provider="anthropic",
+                   messages=[Message("system", SYSTEM), Message("user", user_text)], ts=ts)
+
+
+def test_anthropic_1h_recovers_hits_between_5_and_60_min():
+    # Reuse 10 minutes after the write: expired under the default 5-minute
+    # cache, alive under the documented 1-hour option.
+    reqs = [make_anth("w", "q1", ts=0.0), make_anth("r", "q2", ts=600.0)]
+    asis = simulate(reqs, ENC, ANTH)
+    assert asis.per_request[1].read == 0
+    (sc,) = run_scenarios(["anthropic-1h"], reqs, ENC, ANTH)
+    assert sc["result"]["simulated_units"] != round(asis.simulated_units, 1)
+    assert any("2x base input" in n for n in sc["notes"])
+
+
+def test_anthropic_1h_charges_pricier_writes():
+    # Single-use prefix: 1h writes cost strictly more (2x vs 1.25x).
+    reqs = [make_anth("w", "q1", ts=0.0)]
+    asis = simulate(reqs, ENC, ANTH)
+    (sc,) = run_scenarios(["anthropic-1h"], reqs, ENC, ANTH)
+    assert sc["result"]["simulated_units"] > round(asis.simulated_units, 1)
+
+
+def test_anthropic_1h_rejected_for_other_providers():
+    reqs = [make_req("a", "q1", ts=0.0)]
+    with pytest.raises(SystemExit) as e:
+        run_scenarios(["anthropic-1h"], reqs, ENC, OPENAI)
+    assert "Anthropic rules only" in str(e.value)
+
+
+def test_anthropic_1h_caveats_flag_refresh_assumption():
+    reqs = [make_anth("w", "q1", ts=0.0)]
+    (sc,) = run_scenarios(["anthropic-1h"], reqs, ENC, ANTH)
+    joined = " ".join(sc["caveats"])
+    assert "refresh" in joined.lower() and "Non-mutating" in joined
