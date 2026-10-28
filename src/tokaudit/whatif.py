@@ -16,7 +16,7 @@ from .logs import Request
 from .prefix import SimulationResult, simulate
 from .rules import ProviderRules
 
-SCENARIOS = ("anthropic-1h", "dense", "dedup")
+SCENARIOS = ("anthropic-1h", "openai-12h", "dense", "dedup")
 
 
 def _summarize(sim: SimulationResult) -> Dict:
@@ -229,7 +229,73 @@ def _anthropic_1h(
     }
 
 
-_RUNNERS = {"anthropic-1h": _anthropic_1h, "dense": _dense, "dedup": _dedup}
+def _openai_12h(
+    requests: List[Request],
+    encode: Callable[[str], List[int]],
+    rules: ProviderRules,
+    force_family: Optional[str],
+    isolate_sessions: bool,
+) -> Dict:
+    """Scenario: OpenAI's documented 12-hour cache lifetime instead of 30 min.
+
+    OpenAI documents a default 30-minute minimum lifetime at 1.25x writes
+    and an optional 12-hour minimum lifetime at 2.5x ordinary input, with
+    reads at 0.1x (0.05x on GPT-6.1 Sol/Terra) regardless of the selected
+    lifetime (rules/EVIDENCE.md). The scenario re-simulates with ttl
+    43200s and write multiplier 2.5 so the pricier writes and the longer
+    reuse window are weighed together. Read multipliers are left
+    untouched, so per-model read discounts still apply.
+    """
+    if rules.name != "openai":
+        raise SystemExit(
+            "--what-if openai-12h applies to OpenAI rules only "
+            f"(this group uses '{rules.name}'). On a mixed log, select the "
+            "OpenAI group with --provider openai."
+        )
+    caveats = [
+        "The 12-hour lifetime is a real request-time option in OpenAI's "
+        "API, but whether its pricier writes pay off depends on actual "
+        "reuse landing 30 minutes to 12 hours after each write; this "
+        "simulation of your log cannot predict future traffic.",
+        "OpenAI documents retention as 'at least' the requested minimum "
+        "and may keep entries longer, so even the as-is simulation is "
+        "conservative about expiry; treat 12-hour hits as plausible, not "
+        "guaranteed, reuse.",
+        "Non-mutating: the as-is simulation above is unchanged.",
+    ]
+    twelve_h = replace(
+        rules,
+        ttl_seconds=43200,
+        write_multiplier=2.5,
+        families={
+            name: replace(fam, ttl_seconds=43200, write_multiplier=2.5)
+            for name, fam in rules.families.items()
+        },
+    )
+    sim = simulate(requests, encode, twelve_h, force_family=force_family,
+                   isolate_sessions=isolate_sessions)
+    notes = [
+        "Re-simulated with the documented 12-hour cache option: TTL "
+        "43200s, writes at 2.5x ordinary input (vs 1.25x for the default "
+        "30-minute cache), reads unchanged (rules/EVIDENCE.md, OpenAI "
+        "prompt-caching doc)."
+    ]
+    if sim.skipped:
+        notes.append(
+            f"{len(sim.skipped)} request(s) remain excluded (unverified "
+            "policy), same as the as-is simulation."
+        )
+    return {
+        "name": "openai-12h",
+        "title": "OpenAI 12-hour cache scenario",
+        "result": _summarize(sim),
+        "caveats": caveats,
+        "notes": notes,
+    }
+
+
+_RUNNERS = {"anthropic-1h": _anthropic_1h, "openai-12h": _openai_12h,
+            "dense": _dense, "dedup": _dedup}
 
 
 def run_scenarios(
