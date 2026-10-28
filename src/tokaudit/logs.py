@@ -48,6 +48,9 @@ class Request:
     ts: Optional[float] = None
     session_id: Optional[str] = None
     cache_key: Optional[str] = None
+    # Provider-reported token usage when the source export includes it
+    # (e.g. Helicone prompt_cache_read_tokens). Never synthesized.
+    actual_usage: Optional[Dict[str, int]] = None
 
     def canonical(self) -> str:
         return "\n".join(f"<{m.role}>\n{m.text}" for m in self.messages)
@@ -140,6 +143,11 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
         cache_key=(
             str(obj.get("prompt_cache_key") or obj.get("cache_key"))
             if (obj.get("prompt_cache_key") or obj.get("cache_key"))
+            else None
+        ),
+        actual_usage=(
+            {str(k): int(v) for k, v in obj["actual_usage"].items()}
+            if isinstance(obj.get("actual_usage"), dict)
             else None
         ),
     )
