@@ -68,6 +68,14 @@ tokaudit analyze requests.jsonl --what-if anthropic-1h      # 1-hour TTL cost-be
                                                 # (Anthropic logs; use --provider anthropic on mixed logs)
 ```
 
+`--prices SHEET.json` adds dollar figures from your own price sheet -
+`{"models": {"gpt-6-astra": {"input": 10.0, "cached_input": 1.0,
+"cache_write": 12.5}}}` (per 1M tokens). No prices ship with tokaudit;
+sheets fail closed on unknown keys, missing or negative rates, and
+requests whose model is absent from the sheet are excluded from dollar
+totals. Dollar figures apply your sheet to simulated token flows: still
+simulated, not observed billing.
+
 `--what-if` scenarios are hypothetical and non-mutating: they re-run the
 simulation on a transformed copy of the log and report their own numbers
 next to the as-is simulation. `dense` rescales timestamps so nothing
