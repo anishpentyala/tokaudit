@@ -13,32 +13,44 @@ from .logs import load_log
 from .prefix import simulate
 from .report import build_report, to_markdown
 from .rules import load_rules
+from .config import load_config
 from .tokenizers import get_backend
 from .whatif import SCENARIOS, run_scenarios
 
 
 def _cmd_analyze(args: argparse.Namespace) -> int:
+    cfg = load_config(args.config)
+    provider = args.provider if args.provider is not None else cfg.get("provider", "auto")
+    tokenizer = args.tokenizer if args.tokenizer is not None else cfg.get("tokenizer", "auto")
+    out_format = args.format if args.format is not None else cfg.get("format", "md")
+    rules_path = args.rules if args.rules is not None else cfg.get("rules")
+    policy = args.policy if args.policy is not None else cfg.get("policy")
+    dup_min = args.dup_min_tokens if args.dup_min_tokens is not None else cfg.get("dup_min_tokens", 128)
+    isolate = args.isolate_sessions or bool(cfg.get("isolate_sessions", False))
+    what_if = args.what_if if args.what_if is not None else cfg.get("what_if")
+    output = args.output if args.output is not None else cfg.get("output")
+
     requests = load_log(args.log)
-    ruleset = load_rules(args.rules)
-    backend = get_backend(args.tokenizer)
+    ruleset = load_rules(rules_path)
+    backend = get_backend(tokenizer)
 
     groups = defaultdict(list)
     for req in requests:
-        provider = req.provider if args.provider == "auto" else args.provider
-        groups[provider].append(req)
+        prov = req.provider if provider == "auto" else provider
+        groups[prov].append(req)
 
     reports = []
     for provider, group in sorted(groups.items()):
         rules = ruleset.for_provider(provider)
-        sim = simulate(group, backend.encode, rules, force_family=args.policy,
-                       isolate_sessions=args.isolate_sessions)
+        sim = simulate(group, backend.encode, rules, force_family=policy,
+                       isolate_sessions=isolate)
         scenarios = run_scenarios(
-            args.what_if or [], group, backend.encode, rules,
-            force_family=args.policy, isolate_sessions=args.isolate_sessions,
+            what_if or [], group, backend.encode, rules,
+            force_family=policy, isolate_sessions=isolate,
         )
         dups = find_duplicates(
             group, backend.encode,
-            min_tokens=args.dup_min_tokens, shingle=max(args.dup_min_tokens // 3, 8),
+            min_tokens=dup_min, shingle=max(dup_min // 3, 8),
         )
         reports.append(
             build_report(group, sim, dups, ruleset, rules, backend.name,
@@ -59,7 +71,7 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
             },
         }
 
-    if args.format == "json":
+    if out_format == "json":
         out = json.dumps(combined, indent=2)
     else:
         if len(reports) == 1:
@@ -102,11 +114,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     p_an = sub.add_parser("analyze", help="analyze a JSONL request log")
     p_an.add_argument("log", help="path to a JSONL request log")
-    p_an.add_argument("--provider", default="auto", choices=["auto", "openai", "anthropic", "generic"])
+    p_an.add_argument("--provider", default=None, choices=["auto", "openai", "anthropic", "generic"])
     p_an.add_argument("--policy", default=None,
                       help="force a policy family (e.g. legacy, gpt56_plus) for all requests")
-    p_an.add_argument("--tokenizer", default="auto", choices=["auto", "exact", "estimate"])
-    p_an.add_argument("--format", default="md", choices=["md", "json"])
+    p_an.add_argument("--tokenizer", default=None, choices=["auto", "exact", "estimate"])
+    p_an.add_argument("--format", default=None, choices=["md", "json"])
     p_an.add_argument("--rules", default=None, help="path to a custom provider rules JSON")
     p_an.add_argument("--what-if", action="append", choices=sorted(SCENARIOS),
                       metavar="SCENARIO",
@@ -119,9 +131,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_an.add_argument("--isolate-sessions", action="store_true",
                       help="conservative scenario: also partition cache reuse by session_id "
                            "(not provider-documented behavior)")
-    p_an.add_argument("--dup-min-tokens", type=int, default=128,
+    p_an.add_argument("--dup-min-tokens", type=int, default=None,
                       help="minimum size of repeated blocks to report")
     p_an.add_argument("--output", default=None, help="write the report to a file")
+    p_an.add_argument("--config", default=None,
+                      help="path to a .tokaudit.toml config file (defaults: "
+                           "./.tokaudit.toml when present; CLI flags win)")
     p_an.set_defaults(func=_cmd_analyze)
 
     p_rules = sub.add_parser("rules", help="show the provider caching rules in use")
