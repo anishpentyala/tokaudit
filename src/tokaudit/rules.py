@@ -1,6 +1,8 @@
 """Provider prompt-caching rules, loaded from a versioned JSON data file.
 
-Defaults ship in ``rules/providers.json`` with an ``as_of`` date and source
+Defaults ship inside the package (``tokaudit/providers.json``,
+kept in sync with the repo copy at ``rules/providers.json``) with an
+``as_of`` date and source
 URLs, because providers change rates and minimums. Users can pass their own
 file with ``--rules`` to override any value. Cost math here uses
 *multipliers of the base input-token rate*, not dollars, so results stay
@@ -14,7 +16,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "rules", "providers.json")
+_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "providers.json")
 
 
 @dataclass
