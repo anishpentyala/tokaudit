@@ -15,7 +15,8 @@ Given a JSONL request log, tokaudit:
 - **Simulates prompt caching** against provider rules (minimum cacheable
   length, cache lifetime, write/read multipliers) and reports estimated
   savings in units of the base input-token rate. Rules ship in a dated,
-  sourced data file (`rules/providers.json`) and can be overridden with
+  sourced data file (bundled as package data; the repo copy at
+  `rules/providers.json` is the editable source) and can be overridden with
   `--rules`, because providers change their terms.
 - **Finds repeated content** sent in multiple requests (the same document,
   examples or boilerplate) and sizes the waste, so you can hoist it into
