@@ -39,7 +39,7 @@ def test_other_gpt6_models_keep_point_one_read_rate():
 def test_gpt61_reduced_read_family_wins_over_gpt6_prefix():
     # Sol/Terra resolve to the 0.05x-read family, not the generic GPT-6 family.
     rules = load_rules().for_provider("openai")
-    for model in ("gpt-6.1-sol", "gpt-6.1-terra", "gpt-6.1-sol-2026-10-01"):
+    for model in ("gpt-6.1-sol", "gpt-6.1-terra"):
         fam = rules.resolve_family(model).family
         assert fam.read_multiplier == 0.05, model
         assert not rules.resolve_family(model).assumed
@@ -47,7 +47,7 @@ def test_gpt61_reduced_read_family_wins_over_gpt6_prefix():
 
 def test_astra_luna_verified_at_point_one_read_rate():
     rules = load_rules().for_provider("openai")
-    for model in ("gpt-6-astra", "gpt-6-luna", "gpt-6-astra-2027-01-01"):
+    for model in ("gpt-6-astra", "gpt-6-luna"):
         fam = rules.resolve_family(model).family
         assert fam.read_multiplier == 0.1, model
         assert not rules.resolve_family(model).assumed
@@ -64,6 +64,8 @@ def test_unknown_model_variants_fail_closed():
         "gpt-5.6",            # generic family: base policy only, read rate unverified
         "gpt-7",              # future generation
         "gpt-6-astral",       # typo-squatting the Astra alias
+        "gpt-6-astra-2027-01-01",  # dated snapshot: no documented rate inheritance
+        "gpt-6.1-sol-2026-10-01",  # same: even a real-looking snapshot fails closed
         "o4-mini",            # legacy family
     )
     for model in unknowns:
