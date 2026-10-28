@@ -16,6 +16,9 @@ simulated estimates against dated provider rules, never observed billing.
   represents (model, prompt, prompt_cache_key, session_id), caveated
   that organization and sampling parameters are not in the log.
   Unknown scenario names fail closed.
+- `.tokaudit.toml` config file for `analyze` defaults (auto-discovered in
+  the current directory or via `--config`); CLI flags win; unknown keys
+  and bad values fail closed. Needs tomllib (Python 3.11+) or `tomli`.
 - `--what-if anthropic-1h`: re-simulates Anthropic logs with the
   documented 1-hour cache TTL (3600s, writes 2x base input vs 1.25x,
   reads unchanged) to weigh pricier writes against the longer reuse
