@@ -194,3 +194,37 @@ def test_anthropic_1h_caveats_flag_refresh_assumption():
     (sc,) = run_scenarios(["anthropic-1h"], reqs, ENC, ANTH)
     joined = " ".join(sc["caveats"])
     assert "refresh" in joined.lower() and "Non-mutating" in joined
+
+
+def test_openai_12h_recovers_hits_between_30m_and_12h():
+    # Reuse 2 hours after the write: expired under the default 30-minute
+    # cache, alive under the documented 12-hour option.
+    reqs = [make_req("w", "q1", ts=0.0), make_req("r", "q2", ts=7200.0)]
+    asis = simulate(reqs, ENC, OPENAI)
+    assert asis.per_request[1].read == 0
+    (sc,) = run_scenarios(["openai-12h"], reqs, ENC, OPENAI)
+    assert sc["result"]["simulated_units"] != round(asis.simulated_units, 1)
+    assert any("2.5x ordinary input" in n for n in sc["notes"])
+
+
+def test_openai_12h_charges_pricier_writes():
+    # Single-use prefix: 12h writes cost strictly more (2.5x vs 1.25x).
+    reqs = [make_req("w", "q1", ts=0.0)]
+    asis = simulate(reqs, ENC, OPENAI)
+    (sc,) = run_scenarios(["openai-12h"], reqs, ENC, OPENAI)
+    assert sc["result"]["simulated_units"] > round(asis.simulated_units, 1)
+
+
+def test_openai_12h_rejected_for_other_providers():
+    from tokaudit.whatif import SCENARIOS
+    assert "openai-12h" in SCENARIOS
+    with pytest.raises(SystemExit) as e:
+        run_scenarios(["openai-12h"], [make_anth("w", "q1", ts=0.0)], ENC, ANTH)
+    assert "OpenAI rules only" in str(e.value)
+
+
+def test_openai_12h_caveats_flag_retention_assumption():
+    reqs = [make_req("w", "q1", ts=0.0)]
+    (sc,) = run_scenarios(["openai-12h"], reqs, ENC, OPENAI)
+    joined = " ".join(sc["caveats"])
+    assert "at least" in joined and "Non-mutating" in joined
