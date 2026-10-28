@@ -24,3 +24,21 @@ The log uses `gpt-6-astra`, an exactly documented model identifier with
 verified cache rates (see `rules/EVIDENCE.md`). Models without verified
 rates are excluded from savings and listed under
 "skipped, unverified policy".
+
+## Provider-reported usage example
+
+`helicone_usage.jsonl` is a five-request Helicone export (typed
+HeliconeRequest fields) where the provider reported cache reads and one
+cache write. Run:
+
+```bash
+tokaudit analyze examples/helicone_usage.jsonl --tokenizer estimate
+```
+
+The report gains a "Provider-reported vs simulated" section (captured in
+`helicone-usage-report.md`, regenerated 2026-10-28). The provider numbers
+(18,000 read / 4,500 written) and the simulated numbers (4,292 / 1,121
+with the estimator) differ by design: the provider counts with its own
+tokenizer, and the estimator is crude on repetitive prose. The section
+exists to catch coverage or modeling mistakes, not to reproduce billing
+arithmetic - see the note printed under the section.
