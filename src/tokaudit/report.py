@@ -92,6 +92,7 @@ def build_report(
         "below_min_cacheable": below_min,
         "what_if": scenarios or [],
         "pricing": pricing,
+        "provider_reported": _provider_reported(requests, sim),
         "recommendations": recommendations,
         "assumptions": {
             "rules_as_of": ruleset.as_of,
@@ -117,6 +118,37 @@ def build_report(
                 "usage fields (cache_read_input_tokens / cached_tokens) in production."
             ),
         },
+    }
+
+
+def _provider_reported(requests: List[Request], sim: SimulationResult) -> Optional[Dict]:
+    """Compare provider-reported usage with the simulation when the export
+    carried real usage fields (Helicone rows today). Providers count with
+    their own tokenizers and hidden context, so exact equality is not
+    expected; large divergence means the simulation or the log's coverage
+    should be questioned."""
+    with_usage = [r for r in requests if r.actual_usage]
+    if not with_usage:
+        return None
+    sim_read = sum(c.read for c in sim.per_request)
+    sim_written = sum(c.written for c in sim.per_request)
+    actual_read = sum(r.actual_usage.get("cache_read_tokens", 0) for r in with_usage)
+    actual_written = sum(r.actual_usage.get("cache_write_tokens", 0) for r in with_usage)
+    actual_prompt = sum(r.actual_usage.get("prompt_tokens", 0) for r in with_usage)
+    return {
+        "requests_with_usage": len(with_usage),
+        "actual_cache_read_tokens": actual_read,
+        "actual_cache_write_tokens": actual_written,
+        "actual_prompt_tokens": actual_prompt,
+        "simulated_cache_read_tokens": sim_read,
+        "simulated_cache_write_tokens": sim_written,
+        "note": ("Provider-reported fields come from the export (Helicone "
+                 "prompt_cache_read_tokens / prompt_cache_write_tokens / "
+                 "prompt_tokens), counted with the provider's tokenizer and "
+                 "hidden context; the simulation re-tokenizes a canonical "
+                 "render. Exact equality is not expected - treat large "
+                 "divergence as a signal to question coverage or model "
+                 "assumptions, not as a billing discrepancy by itself."),
     }
 
 
@@ -218,6 +250,21 @@ def to_markdown(report: Dict) -> str:
             for c in sc["caveats"]:
                 lines.append(f"- Caveat: {c}")
             lines.append("")
+    if report.get("provider_reported"):
+        pr = report["provider_reported"]
+        lines += ["", "## Provider-reported vs simulated", ""]
+        lines.append(f"- Requests with provider usage fields: {pr['requests_with_usage']}")
+        lines.append(
+            f"- Cache read tokens: provider {pr['actual_cache_read_tokens']:,} "
+            f"vs simulated {pr['simulated_cache_read_tokens']:,}"
+        )
+        lines.append(
+            f"- Cache write tokens: provider {pr['actual_cache_write_tokens']:,} "
+            f"vs simulated {pr['simulated_cache_write_tokens']:,}"
+        )
+        if pr["actual_prompt_tokens"]:
+            lines.append(f"- Provider prompt tokens: {pr['actual_prompt_tokens']:,}")
+        lines.append(f"- {pr['note']}")
     lines += ["", "## Recommendations", ""]
     for r in report["recommendations"]:
         lines.append(f"- {r}")
