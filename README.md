@@ -63,6 +63,7 @@ tokaudit analyze requests.jsonl --policy gpt6_verified_01x  # force a verified f
 tokaudit analyze requests.jsonl --isolate-sessions          # conservative scenario
 tokaudit analyze requests.jsonl --what-if dense             # upper-bound ceiling
 tokaudit analyze requests.jsonl --what-if dedup             # exact-duplicate collapse
+tokaudit analyze requests.jsonl --what-if anthropic-1h      # 1-hour TTL cost-benefit
 ```
 
 `--what-if` scenarios are hypothetical and non-mutating: they re-run the
@@ -74,7 +75,11 @@ real-world bound - real hits also depend on best-effort provider prefix
 routing and concurrency. `dedup` collapses exact duplicate requests
 (same model, rendered prompt, prompt_cache_key and session_id - only
 safe if the duplicates were redundant, which sampling parameters and
-organization, not present in the log, can decide). Neither scenario claims reordering or collapsing real traffic is
+organization, not present in the log, can decide).
+`anthropic-1h` (Anthropic logs only) re-simulates with the documented
+1-hour cache option - TTL 3600s, writes at 2x base input instead of
+1.25x, reads unchanged - so pricier writes and the longer reuse window
+are weighed together. Neither scenario claims reordering or collapsing real traffic is
 safe for your application.
 
 Savings are estimated only for exactly matched, documented model
