@@ -9,7 +9,10 @@ Grounding status (re-checked dates inline):
 - LiteLLM SpendLogs row: fields verified against litellm/proxy/
   schema.prisma (model LiteLLM_SpendLogs) on 2026-10-28, re-verified same
   day against BerriAI/litellm main schema.prisma (request_id, startTime,
-  messages, model, custom_llm_provider, session_id all present).
+  messages, model, custom_llm_provider, session_id, prompt_tokens Int,
+  completion_tokens Int, cache_hit String all present). cache_hit is
+  LiteLLM's application-level cache flag, not provider prompt-cache
+  usage, and is deliberately not mapped to actual_usage cache fields.
 - Langfuse observation (Observations API v2, GET /api/public/v2/observations):
   usageDetails key families pinned by Langfuse's provider-usage-key matrix
   (github.com/langfuse/langfuse .agents/skills/add-model-price/references/
@@ -108,6 +111,14 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             )
         if obj.get("session_id"):
             out["session_id"] = obj["session_id"]
+        # Provider-reported prompt tokens (typed Int field on SpendLogs).
+        # cache_hit is NOT mapped: it marks LiteLLM's own application-level
+        # cache (exact/semantic match against prior responses), not the
+        # provider's prompt cache, and SpendLogs has no cache-read token
+        # field, so cache comparison fails closed for this adapter.
+        pt = obj.get("prompt_tokens")
+        if isinstance(pt, int) and not isinstance(pt, bool) and pt >= 0:
+            out["actual_usage"] = {"prompt_tokens": pt}
         return {k: v for k, v in out.items() if v is not None}
 
     if _is_langfuse_observation(obj):
