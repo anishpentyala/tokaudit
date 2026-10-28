@@ -58,3 +58,23 @@ Implication for simulation: entries are shared within one organization + region
 per model; `prompt_cache_key` partitions reuse. App session IDs are NOT a
 documented cache boundary. `--isolate-sessions` is an explicit conservative
 scenario, labeled as such in output.
+
+## Per-model list prices (OpenAI model comparison, fetched 2026-10-28 via browser render; page is JS-only)
+
+URL: https://platform.openai.com/docs/models/compare
+
+Per-model pricing cards, verbatim values:
+
+- GPT-6 Astra ("Our most capable model for the most demanding work"):
+  Input $10.00, Cached input $1.00, Cache writes $12.50, Output $50.00 per 1M tokens.
+  -> read 0.1x, write 1.25x.
+- GPT-6.1 Sol ("Near-Astra performance for complex work at a lower cost"):
+  Input $2.00, Cached input $0.10, Cache writes $2.50, Output $10.00 per 1M tokens.
+  -> read 0.05x, write 1.25x.
+- GPT-6 Luna ("Our most efficient model for focused, high-volume tasks"):
+  Input $0.10, Cached input $0.01, Cache writes $0.125, Output $0.50 per 1M tokens.
+  -> read 0.1x, write 1.25x.
+
+These confirm the documented multipliers per model. The page lists current
+models only; pre-GPT-5.6 cached-input rates remain unverified, so the legacy
+family stays fail-closed.
