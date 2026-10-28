@@ -18,6 +18,19 @@ simulated estimates against dated provider rules, never observed billing.
   (clearly labeled: not provider-documented behavior). Identical logs can
   produce different (usually lower) simulated savings than v0.2.0.
 
+### Added
+
+- Model matching is exact-alias only (a model id equals the alias or carries
+  a dash-separated suffix such as a dated snapshot); lookalike names never
+  inherit verified rates. Verified per model on 2026-10-28 via the prompt-
+  caching guide and model comparison list prices: GPT-6.1 Sol/Terra read
+  0.05x, GPT-6 Astra/Luna read 0.1x, all at 1.25x writes. The generic
+  GPT-5.6+ family keeps the documented base policy (1024-token minimum,
+  30-minute default lifetime, 1.25x writes) but is excluded from savings
+  because per-model read rates are unverified; unknown variants fail closed.
+  Rates remain list-price-derived simulation parameters; savings stay
+  simulated, never observed billing.
+
 ### Fixed
 
 - Langfuse adapter: detection no longer requires `input` (it lives in the
