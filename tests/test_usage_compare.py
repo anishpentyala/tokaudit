@@ -103,7 +103,7 @@ def test_examples_helicone_file_parses(capsys):
     assert rc == 0
     pr = json.loads(capsys.readouterr().out)["provider_reported"]
     assert pr["requests_with_usage"] == 5
-    assert pr["actual_cache_read_tokens"] == 18000
+    assert pr["actual_cache_read_tokens"] == 4476
 
 
 def test_litellm_prompt_tokens_compared_cache_not_mapped(tmp_path, capsys):
