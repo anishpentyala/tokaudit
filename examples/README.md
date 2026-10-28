@@ -36,9 +36,12 @@ tokaudit analyze examples/helicone_usage.jsonl --tokenizer estimate
 ```
 
 The report gains a "Provider-reported vs simulated" section (captured in
-`helicone-usage-report.md`, regenerated 2026-10-28). The provider numbers
-(18,000 read / 4,500 written) and the simulated numbers (4,292 / 1,121
-with the estimator) differ by design: the provider counts with its own
-tokenizer, and the estimator is crude on repetitive prose. The section
-exists to catch coverage or modeling mistakes, not to reproduce billing
-arithmetic - see the note printed under the section.
+`helicone-usage-report.md`, regenerated 2026-10-28). The export's
+provider fields were generated with a real tokenizer (tiktoken
+`o200k_base`) so they are plausible provider counts for this exact log:
+the shared prefix is 1,119 tokens, read four times and written once.
+The estimator counts the same prefix at ~1,394, so the section shows a
+~1.25x divergence - the section exists to catch coverage or modeling
+mistakes, not to reproduce billing arithmetic, and exact equality is not
+expected even with matching tokenizers because providers count hidden
+context. See the note printed under the section.
