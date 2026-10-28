@@ -173,4 +173,4 @@ def load_rules(path: Optional[str] = None) -> Ruleset:
         as_of=str(data.get("as_of", "unknown")),
         sources={str(k): str(v) for k, v in data.get("sources", {}).items()},
         providers=providers,
-            )
+    )
