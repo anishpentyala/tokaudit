@@ -69,6 +69,7 @@ def simulate(
     encode: Callable[[str], List[int]],
     rules: ProviderRules,
     force_family: Optional[str] = None,
+    isolate_sessions: bool = False,
 ) -> SimulationResult:
     ordered = sorted(requests, key=lambda r: (r.ts is None, r.ts or 0.0))
     no_ts = any(r.ts is None for r in ordered)
@@ -98,9 +99,17 @@ def simulate(
     assumed_notes: List[str] = []
     family_note_added: set = set()
 
-    cache: Dict[int, float] = {}          # prefix-hash -> expiry
+    # Cache namespaces mirror documented provider scope: entries are shared
+    # within one organization and region for a given model, and a supplied
+    # prompt_cache_key separates reuse between groups (rules/EVIDENCE.md).
+    # Records carry no org/region fields, so one shared org+region is assumed;
+    # that can overstate reuse when a log mixes accounts. --isolate-sessions
+    # is an explicit conservative scenario (not provider semantics) that also
+    # partitions by the app's session_id.
+    caches: Dict[Tuple[str, Optional[str], Optional[str]], Dict[int, float]] = {}
+    read_marks: Dict[Tuple[str, Optional[str], Optional[str]], Dict[int, bool]] = {}
     written_marks: Dict[int, List[int]] = {}  # request index -> boundary hashes written
-    hash_read: Dict[int, bool] = {}
+
     per_request: List[RequestCost] = []
     charged_delta: List[Tuple[int, int]] = []  # (request index, charged delta tokens)
 
@@ -132,6 +141,10 @@ def simulate(
         mm = rules.resolve_min_prefix(req.model)
         if mm != rules.min_prefix_tokens:
             min_pref = mm
+
+        namespace = (req.model, req.cache_key, req.session_id if isolate_sessions else None)
+        cache = caches.setdefault(namespace, {})
+        hash_read = read_marks.setdefault(namespace, {})
 
         # Boundary k is the prefix covering the first k+1 messages, hashed
         # from its own rendered text so shared text prefixes always hash
@@ -202,12 +215,27 @@ def simulate(
     # Wasted writes: charged deltas whose written prefixes no later request read.
     wasted = 0
     for i, delta in charged_delta:
-        if not any(hash_read.get(h, False) for h in written_marks.get(i, [])):
+        req = ordered[i]
+        ns = (req.model, req.cache_key, req.session_id if isolate_sessions else None)
+        ns_reads = read_marks.get(ns, {})
+        if not any(ns_reads.get(h, False) for h in written_marks.get(i, [])):
             wasted += delta
     if wasted:
         notes.append(
             "Some tokens were written to cache but never re-read; single-use "
             "prefixes cost extra whenever the family charges for writes."
+        )
+    notes.append(
+        "Cache namespace model (rules/EVIDENCE.md, OpenAI 2026-10-28): entries shared "
+        "within one organization + region per model; a record's prompt_cache_key "
+        "separates reuse groups. Logs carry no org/region fields, so one shared "
+        "org+region is assumed - mixed-account logs can overstate reuse."
+    )
+    if isolate_sessions:
+        notes.append(
+            "--isolate-sessions active: cache entries are additionally partitioned by "
+            "session_id. This is a conservative scenario, not provider-documented "
+            "behavior; real providers may reuse eligible prefixes across sessions."
         )
     notes.extend(assumed_notes)
     if skipped:
@@ -231,4 +259,4 @@ def simulate(
         wasted_write_tokens=wasted,
         notes=notes,
         skipped=skipped,
-    )
+          )
