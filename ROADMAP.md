@@ -27,10 +27,10 @@ Prioritized next steps. Each item should ship with tests.
 - [x] `.tokaudit.toml` config file support (fail-closed validation).
 - [ ] HTML report with per-request table. (on hold: no concrete need)
 - [ ] `tokaudit watch` mode for a growing log file. (on hold: no concrete need)
-- [ ] `--prices SHEET.json`: convert units to dollars from a user-supplied
+- [x] `--prices SHEET.json`: convert units to dollars from a user-supplied
       price sheet (model -> {input, cached_input, cache_write} per 1M).
-      Evaluated 2026-10-28: accepted for next session. No prices ship in
-      the tool; the sheet is user data, validated fail-closed.
+      Shipped 2026-10-28 (31aba38). No prices ship in the tool; the sheet
+      is user data, validated fail-closed.
 
 ## Evaluated and closed
 - Anthropic 1-hour cache cost-benefit modeling -> shipped as
