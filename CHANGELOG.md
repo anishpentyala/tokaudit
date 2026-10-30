@@ -14,6 +14,13 @@
   missing (conservative ordering) instead of silently poisoning TTL
   comparisons.
 
+### Changed
+
+- CI: dropped the Python 3.9 leg (3.9 is EOL and no longer available on
+  the ubuntu-latest runner image, which failed every run at setup) and
+  added 3.13; `requires-python` is now >=3.10. The code itself still
+  runs on 3.9; only the tested/supported window moved.
+
 ### Added
 
 - `tests/test_robustness.py`: hostile-input sweeps - record-mutation
