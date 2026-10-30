@@ -166,3 +166,98 @@ def test_cli_exit_codes(tmp_path, capsys):
     assert main(["integrity", str(pd), "--fail-on-findings"]) == 1
     out = capsys.readouterr().out
     assert "zero_spend_with_usage" in out and "48937" in out
+
+
+# --- Synthetic NEGATIVE cases: documented legitimate patterns must stay
+# quiet, so the checks remain signals rather than false accusations.
+
+def test_usage_sum_not_flagged_when_cache_fields_explain_gap():
+    # Documented alternative accounting (e.g. a mapper that counts
+    # cache_read/cache_creation OUTSIDE prompt+completion, unlike LiteLLM's
+    # verified fold-in): the explicit cache fields exactly explain the gap,
+    # so no finding.
+    f = check_record(_litellm("r1", spend=0.01, prompt_tokens=100,
+                              completion_tokens=50, total_tokens=180,
+                              cache_read_input_tokens=20,
+                              cache_creation_input_tokens=10), 1)
+    assert "usage_sum_mismatch" not in _names(f)
+
+
+def test_usage_sum_still_fires_when_cache_fields_do_not_explain_gap():
+    # Gap larger than the documented cache components: real mismatch.
+    f = check_record(_litellm("r1", spend=0.01, prompt_tokens=100,
+                              completion_tokens=50, total_tokens=200,
+                              cache_read_input_tokens=20), 1)
+    assert "usage_sum_mismatch" in _names(f)
+
+
+def test_usage_sum_finding_states_schema_assumption():
+    f = check_record(_litellm("r1", spend=0.01, prompt_tokens=100,
+                              completion_tokens=50, total_tokens=200), 1)
+    (finding,) = [x for x in f if x.invariant == "usage_sum_mismatch"]
+    assert "OpenAI/LiteLLM usage shape" in finding.detail
+    assert "verify the schema" in finding.detail
+
+
+def test_upstream_cost_field_not_flagged_for_openrouter():
+    # OpenRouter's usage accounting API returns a usage cost field as a
+    # documented contract; flagging it would be a false accusation.
+    f = check_record(_litellm("r1", spend=0.01,
+                              custom_llm_provider="openrouter",
+                              prompt_tokens=10, completion_tokens=5,
+                              total_tokens=15,
+                              usage={"prompt_tokens": 10,
+                                     "completion_tokens": 5,
+                                     "cost": 0.0001}), 1)
+    assert "upstream_cost_field_in_usage" not in _names(f)
+
+
+def test_upstream_cost_field_fires_for_other_providers_with_caveat():
+    f = check_record(_litellm("r1", spend=0.01,
+                              custom_llm_provider="azure_ai",
+                              prompt_tokens=10, completion_tokens=5,
+                              total_tokens=15,
+                              usage={"prompt_tokens": 10,
+                                     "completion_tokens": 5,
+                                     "cost": 0.0001}), 1)
+    (finding,) = [x for x in f
+                  if x.invariant == "upstream_cost_field_in_usage"]
+    assert "legitimate contract" in finding.detail
+    assert "OpenRouter" in finding.detail
+
+
+def test_spend_breakdown_within_float_tolerance_not_flagged():
+    # Rounding noise below the relative tolerance is not a disagreement.
+    f = check_record(_litellm("r1", spend=0.1000000001,
+                              cost_breakdown={"total_cost": 0.1}), 1)
+    assert "spend_cost_breakdown_disagreement" not in _names(f)
+
+
+def test_spend_breakdown_finding_names_legitimate_explanations():
+    f = check_record(_litellm("r1", spend=0.0,
+                              cost_breakdown={"total_cost": 0.05}), 1)
+    (finding,) = [x for x in f
+                  if x.invariant == "spend_cost_breakdown_disagreement"]
+    assert "discounts or a unit mismatch" in finding.detail
+    assert "not proof of misbilling" in finding.detail
+
+
+def test_duplicate_spend_finding_names_retry_explanation(tmp_path):
+    rows = [_litellm("dup", spend=0.02, prompt_tokens=1,
+                     completion_tokens=1, total_tokens=2),
+            _litellm("dup", spend=0.03, prompt_tokens=1,
+                     completion_tokens=1, total_tokens=2)]
+    p = tmp_path / "log.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    findings = run_integrity(str(p))
+    (finding,) = [x for x in findings
+                  if x.invariant == "duplicate_spend_record"]
+    assert "retried or streamed re-emissions" in finding.detail
+
+
+def test_zero_spend_finding_names_free_and_cached_explanations():
+    f = check_record(_litellm("r1", spend=0, prompt_tokens=10,
+                              completion_tokens=5, total_tokens=15), 1)
+    (finding,) = [x for x in f if x.invariant == "zero_spend_with_usage"]
+    assert "zero-priced models" in finding.detail
+    assert "fully cached" in finding.detail or "cached calls" in finding.detail
