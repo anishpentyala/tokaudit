@@ -138,3 +138,11 @@ Factual record of work sessions. Newest first.
 - Verification: tests/datasets + tests/utilities/test_box_ops.py = 1143 passed, 361 skipped (GPU/network), 0 failed. Reporter's reproduce.py after patch: every sweep row median IoU 1.000, 0.0% IoU<0.7, 0 empty masks. ruff check + ruff format clean.
 - NOT published: rf-detr CLA is mandatory and not accepted; no fork, no branch push, no PR, no CLA interaction. Awaiting user decision held by main.
 - tokaudit HEAD ec67e4f CI green: https://github.com/anishpentyala/tokaudit/actions/runs/40788907113
+
+## 2026-10-29 ~11:50 PM PT - estimator rework: word-based hybrid + synthetic benchmark
+
+- Reworked EstimatorBackend from fixed 4-char blocks to per-word scoring in thirds of a pseudo-token: natural-language words (85%+ ASCII letters) score 4/3 (standard ~0.75 words/token English heuristic); symbol-heavy words score 2/3 per structural character ({}[]",:) plus 1/4-token per remaining character. Per-word additive weights keep encode() prefix-stable up to boundary-word rounding. count() == len(encode()) still holds.
+- Motivation: new deterministic synthetic benchmark (src/tokaudit/benchmark.py, seeded template-generated prose/code/JSON corpus, python -m tokaudit.benchmark) exposed 48% mean prose error on short texts with the block estimator. After the rework, measured vs tiktoken o200k_base (60 samples/category, seed 20261029): prose 18.1% mean, code 16.2%, json 19.4% (table in README). Tradeoff accepted: json mean rose from ~14% (block doubling) to 19.4% in exchange for prose 48->18 and code 22->16, uniform behavior, and no 36% blowup on spaced JSON keys (the old doubling rule overshot quoted keys 2x).
+- Documented residual limitation honestly: highly repetitive text compresses under BPE beyond what any length heuristic sees (repetitive prose fixture: 27% overestimate).
+- Fixture fix in test_usage_compare.py: helicone shared prefix lengthened ("policy " * 2000) so the estimated prefix still clears the 1024-token cache minimum under the leaner (more accurate) estimator; old 700-word fixture only passed because the block estimator inflated prose 48%.
+- 11 new tests (benchmark determinism/shape/fail-closed/stats/CLI). 144/144 pass.
