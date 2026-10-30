@@ -7,7 +7,7 @@ name = "tokaudit"
 version = "0.2.0"
 description = "Analyze LLM request logs to find wasted prompt tokens and quantify prompt-caching savings"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = {text = "MIT"}
 dependencies = ["tomli>=2; python_version<'3.11'"]
 

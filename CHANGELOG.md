@@ -4,14 +4,20 @@
 
 ### Fixed
 
-- Benchmark corpus seeding: `random.Random((seed, category))` hashed a
-  tuple, which was randomized per process (the "deterministic" corpus
-  differed run to run) and raises TypeError on Python 3.11+. Now seeded
-  with a string, stable across processes and versions; the corpus
-  content changes as a result, so the README's measured error table and
-  the tokenizers docstring figures are regenerated (prose/code/JSON
-  mean abs err now 17.5%/14.8%/20.1%). Cross-process determinism is
-  pinned by a subprocess regression test.
+- Benchmark corpus seeding: `random.Random((seed, category))` seeded
+  with a tuple. Before Python 3.11 any hashable object was accepted and
+  hashed; the tuple's hash includes the salted string hash of the
+  category, so the "deterministic" corpus differed between processes
+  (reproduced: PYTHONHASHSEED=1 vs 999 give different streams on 3.10)
+  and the old README table measured one arbitrary process's corpus.
+  Python 3.11 restricts seed types to None/int/float/str/bytes/
+  bytearray (CPython docs, `random.Random`: "Formerly the seed could be
+  any hashable object"), so the same code raises TypeError there. Now
+  seeded with a string, stable across processes and versions; the
+  corpus content changes as a result, so the README's measured error
+  table and the tokenizers docstring figures are regenerated
+  (prose/code/JSON mean abs err now 17.5%/14.8%/20.1%). Cross-process
+  determinism is pinned by a subprocess regression test.
 
 - Fail-closed logging parity: six malformed-input classes that crashed
   with an uncaught traceback now exit cleanly with file:line context -
@@ -25,10 +31,13 @@
 
 ### Changed
 
-- CI: dropped the Python 3.9 leg (3.9 is EOL and no longer available on
-  the ubuntu-latest runner image, which failed every run at setup) and
-  added 3.13; `requires-python` is now >=3.10. The code itself still
-  runs on 3.9; only the tested/supported window moved.
+- CI: added the 3.13 leg. The 3.9 leg is pinned to the ubuntu-24.04
+  runner: actions/python-versions publishes 3.9 builds only for linux
+  22.04/24.04, none for Ubuntu 26.04 (which ubuntu-latest now resolves
+  to), so setup-python failed there with "The version '3.9' with
+  architecture 'x64' was not found for Ubuntu 26.04". 3.10-3.13 have
+  26.04 builds and run on ubuntu-latest. Python 3.9 support is
+  retained (`requires-python` stays >=3.9).
 
 ### Added
 
