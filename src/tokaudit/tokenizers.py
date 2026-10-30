@@ -30,7 +30,7 @@ Two backends are provided:
   random cuts. Measured mean absolute error against tiktoken
   o200k_base on the deterministic synthetic corpus in
   ``tokaudit.benchmark`` (60 samples per category): prose ~18%, code
-  ~16%, JSON ~19%; held-out measurements on independently sourced texts
+  ~15%, JSON ~20%; held-out measurements on independently sourced texts
   (and the known weak spots: Vietnamese ~47%, Russian/Arabic ~23%, Thai
   ~52% over, repetitive prose ~27% over) are tabulated in the README.
   ``tests/test_tokenizers.py`` measures the error against tiktoken on
