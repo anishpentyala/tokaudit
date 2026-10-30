@@ -5,23 +5,26 @@ are the accounting fields themselves internally consistent? A steady stream
 of upstream bugs shows they often are not - and when spend reads $0, budgets
 silently stop enforcing (BerriAI/litellm#48937).
 
-Method: version-independent invariants over the raw log records. No live
-calls, no content capture, no price sheet. Each invariant is anchored to a
-documented upstream failure class (the GitHub issue it reproduces the
-SIGNATURE of), which also provides the synthetic-fixture reference.
+Method: offline consistency checks over the raw log records, each with a
+stated schema assumption. No live calls, no content capture, no price
+sheet. Each check is anchored to a documented upstream failure class (the
+GitHub issue it reproduces the SIGNATURE of), which also provides the
+synthetic-fixture reference.
 
 Epistemics (fail closed): a finding says "this record is consistent with
 documented failure class X", never "your deployment has bug X" and never
 "you were misbilled". Whether a class applies depends on the user's upstream
 versions; the report prints the issue link so the user can check. Legitimate
-$0 spends exist (free/custom-priced models, fully cached calls), so every
-invariant fires only on positive internal contradictions, not on absence of
-information. Records we cannot read fail closed (the loader exits), matching
+$0 spends exist (free/custom-priced models, fully cached or discounted
+calls), so checks are signals with stated assumptions, not verdicts: where
+a documented legitimate pattern explains the record, the check stays
+quiet; otherwise the finding text names both the failure class and the
+legitimate alternatives the record cannot rule out. Records we cannot read fail closed (the loader exits), matching
 the analyzer's robustness contract.
 
-Format coverage mirrors the adapters: LiteLLM SpendLogs (full invariant
-set), Helicone flat rows and Langfuse ObservationV2 exports (usage-sum
-invariant where the fields exist). Request text is never read.
+Format coverage mirrors the adapters: LiteLLM SpendLogs (full check set),
+Helicone flat rows and Langfuse ObservationV2 exports (usage-sum check
+where the fields exist). Request text is never read.
 
 Issue anchors (all fetched 2026-10-30):
   #48937 streamed chat completions logged at $0 when upstream reports
@@ -99,7 +102,7 @@ def _usage_triple(obj: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]
 
 
 def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
-    """Apply every applicable invariant to one raw record."""
+    """Apply every applicable check to one raw record."""
     findings: List[Finding] = []
     rid = str(obj.get("request_id") or obj.get("id") or f"line-{line}")
 
@@ -108,14 +111,36 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
     # I3: usage sum mismatch - total disagrees with prompt+completion.
     # (langfuse#14987 class; also fires on LiteLLM/Helicone rows, where a
     # mismatch means the gateway's own fields disagree.)
+    # Schema assumption (stated in the finding): the OpenAI/LiteLLM usage
+    # shape, where total = prompt + completion and detail fields (cached,
+    # reasoning, audio) are SUBSETS of prompt/completion - verified against
+    # LiteLLM's anthropic transformation, which folds cache_read/cache_creation
+    # into prompt_tokens and sets total = prompt + completion. A different
+    # mapper may count cache tokens OUTSIDE that sum; when explicit cache
+    # fields exactly explain the gap, that documented alternative holds and
+    # the check stays quiet instead of accusing.
     if prompt is not None and completion is not None and total is not None:
-        if abs(total - (prompt + completion)) > 1:
-            findings.append(Finding(
-                "usage_sum_mismatch", line, rid,
-                f"total_tokens={total:g} but prompt+completion="
-                f"{prompt + completion:g} (prompt={prompt:g}, "
-                f"completion={completion:g})",
-                LANGFUSE + "14987"))
+        gap = total - (prompt + completion)
+        if abs(gap) > 1:
+            cache_extra = 0.0
+            for k in ("cache_read_input_tokens", "cache_creation_input_tokens"):
+                cache_extra += _num(obj.get(k)) or 0.0
+            details = obj.get("usageDetails") or obj.get("usage_details")
+            if isinstance(details, dict):
+                for k, v in details.items():
+                    if "cache" in k:
+                        cache_extra += _num(v) or 0.0
+            if not (cache_extra > 0 and abs(gap - cache_extra) <= 1):
+                findings.append(Finding(
+                    "usage_sum_mismatch", line, rid,
+                    f"total_tokens={total:g} but prompt+completion="
+                    f"{prompt + completion:g} (prompt={prompt:g}, "
+                    f"completion={completion:g}). Assumes the OpenAI/LiteLLM "
+                    "usage shape (total = prompt + completion, detail fields "
+                    "are subsets); if this record's schema counts tokens "
+                    "outside that sum, verify the schema before treating "
+                    "this as an error.",
+                    LANGFUSE + "14987"))
 
     if not _is_litellm_spendlog(obj):
         return findings
@@ -135,8 +160,10 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
             "zero_spend_with_usage", line, rid,
             f"spend=0 on a non-error call with {billed_tokens:g} usage "
             "tokens; budgets enforce against spend, so such records are "
-            "uncounted. Also legitimate for zero-priced models - check "
-            "whether this model is in your cost map.",
+            "uncounted. Also legitimate for zero-priced models, fully "
+            "cached calls billed at $0, or fully discounted calls - "
+            "check whether this model has a nonzero price in your cost "
+            "map before treating this as the documented failure class.",
             LITELLM + "48937"))
 
     # I2: spend disagrees with the record's own cost_breakdown (#40100).
@@ -148,19 +175,32 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
                 findings.append(Finding(
                     "spend_cost_breakdown_disagreement", line, rid,
                     f"spend={spend:g} but cost_breakdown.total_cost="
-                    f"{cb_total:g} in the same record",
+                    f"{cb_total:g} in the same record (beyond float "
+                    "tolerance). The record's own fields disagree; "
+                    "legitimate explanations include discounts or a unit "
+                    "mismatch - a signal to inspect, not proof of "
+                    "misbilling.",
                     LITELLM + "40100"))
 
     # I6: an upstream-reported cost field riding inside the usage chunk
     # (#35829: trusted verbatim as USD with no unit validation). Presence
     # alone is the flag - no magnitude math, no false-positive arithmetic.
+    # Legitimate contract on some providers: OpenRouter returns a usage cost
+    # field as part of its usage-accounting API, so a record that names
+    # OpenRouter as its provider is suppressed rather than flagged.
     usage_obj = obj.get("usage")
     if isinstance(usage_obj, dict) and "cost" in usage_obj:
-        findings.append(Finding(
-            "upstream_cost_field_in_usage", line, rid,
-            "usage object carries a provider-reported 'cost' field; "
-            "affected LiteLLM versions trusted it verbatim as USD",
-            LITELLM + "35829"))
+        provider = str(obj.get("custom_llm_provider")
+                       or obj.get("llm_provider") or "").lower()
+        if "openrouter" not in provider:
+            findings.append(Finding(
+                "upstream_cost_field_in_usage", line, rid,
+                "usage object carries a provider-reported 'cost' field; "
+                "a legitimate contract on some providers (e.g. OpenRouter "
+                "usage accounting), but affected LiteLLM versions trusted "
+                "it verbatim as USD without unit validation - check which "
+                "applies to this record",
+                LITELLM + "35829"))
 
     # I7: accounting fields present but non-numeric/non-finite (strings,
     # NaN, Infinity) - ingestion-corruption class; the analyzer already
@@ -192,7 +232,10 @@ def check_duplicate_spend(records: List[Tuple[int, Dict[str, Any]]]) -> List[Fin
             findings.append(Finding(
                 "duplicate_spend_record", line, rid,
                 f"request_id already billed ${first_spend:g} at line "
-                f"{first_line}; this row bills ${spend:g} again",
+                f"{first_line}; this row bills ${spend:g} again. Verify "
+                "these are distinct billable calls - retried or streamed "
+                "re-emissions sharing one request_id can look identical "
+                "without being double billing.",
                 LITELLM + "25351"))
         else:
             seen[rid] = (line, spend)
