@@ -127,7 +127,11 @@ def _cmd_integrity(args: argparse.Namespace) -> int:
     if findings:
         lines.append("\nA finding means 'consistent with a documented failure "
                      "class' - check the linked issue against your upstream "
-                     "versions. It is not proof of misbilling.")
+                     "versions. It is a signal, not proof of misbilling. The "
+                     "usage-sum check assumes the OpenAI/LiteLLM usage shape "
+                     "(total = prompt + completion; detail fields are "
+                     "subsets); records whose schema documents a different "
+                     "sum are suppressed when the fields show it.")
     text = "\n".join(lines)
     if args.output:
         with open(args.output, "w", encoding="utf-8") as fh:
