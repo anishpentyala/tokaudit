@@ -41,6 +41,7 @@ Grounding status (re-checked dates inline):
 from __future__ import annotations
 
 import json
+import math
 from typing import Any, Dict
 
 
@@ -215,7 +216,15 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             ("prompt_cache_write_tokens", "cache_write_tokens"),
         ):
             v = obj.get(src_key)
-            if isinstance(v, (int, float)) and v is not None:
+            # Skip malformed values (bools, non-finite floats) the same
+            # way the LiteLLM/Langfuse adapters skip theirs: reported
+            # usage only feeds the simulated-vs-reported comparison, so
+            # "no reported value" is the conservative outcome.
+            if (
+                isinstance(v, (int, float))
+                and not isinstance(v, bool)
+                and math.isfinite(v)
+            ):
                 usage[dst_key] = int(v)
         if usage:
             out["actual_usage"] = usage
