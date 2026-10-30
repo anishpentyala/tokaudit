@@ -26,7 +26,7 @@ Given a JSONL request log, tokaudit:
 - **Flags requests below the minimum cacheable length** and wasted cache
   writes (prefixes written but never re-used, which cost extra).
 - **Counts tokens exactly** with `tiktoken` when installed, or with a
-  dependency-free estimator (~4 chars/token, +/-25% by content type).
+  dependency-free estimator (~4 chars/token on prose/code, denser on structural JSON; measured error vs tiktoken o200k_base ~2% JSON, ~10% code, ~27% prose).
 
 What it is not: a neural prompt compressor. It never rewrites your
 prompts, so there is no risk of changing model behavior. It measures
