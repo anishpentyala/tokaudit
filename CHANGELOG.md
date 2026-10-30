@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- Benchmark corpus seeding: `random.Random((seed, category))` hashed a
+  tuple, which was randomized per process (the "deterministic" corpus
+  differed run to run) and raises TypeError on Python 3.11+. Now seeded
+  with a string, stable across processes and versions; the corpus
+  content changes as a result, so the README's measured error table and
+  the tokenizers docstring figures are regenerated (prose/code/JSON
+  mean abs err now 17.5%/14.8%/20.1%). Cross-process determinism is
+  pinned by a subprocess regression test.
+
 - Fail-closed logging parity: six malformed-input classes that crashed
   with an uncaught traceback now exit cleanly with file:line context -
   a non-list `messages` field, non-integer `actual_usage` values,
