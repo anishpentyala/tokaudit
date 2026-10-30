@@ -16,7 +16,7 @@ def _helicone_log(tmp_path):
             "request_model": "gpt-6-astra", "provider": "OPENAI",
             "response_status": 200,
             "request_body": {"model": "gpt-6-astra", "messages": [
-                {"role": "system", "content": "policy " * 700},
+                {"role": "system", "content": "policy " * 2000},
                 {"role": "user", "content": f"question {i}"}]},
             "response_body": {},
             "prompt_tokens": 2900,
@@ -64,7 +64,7 @@ def _langfuse_obs(i, usage):
         "id": f"lf-{i}", "traceId": "t", "projectId": "p", "type": "GENERATION",
         "startTime": "2026-10-29T08:00:00Z", "model": "claude-sonnet-4-6",
         "input": {"messages": [
-            {"role": "system", "content": "policy " * 700},
+            {"role": "system", "content": "policy " * 2000},
             {"role": "user", "content": f"question {i}"}]},
         "usageDetails": usage,
     }
@@ -111,7 +111,7 @@ def test_litellm_prompt_tokens_compared_cache_not_mapped(tmp_path, capsys):
         "request_id": f"sp-{i}", "call_type": "completion",
         "startTime": "2026-10-29T08:00:00Z", "model": "gpt-6-astra",
         "custom_llm_provider": "openai", "session_id": "s-1",
-        "messages": [{"role": "system", "content": "policy " * 700},
+        "messages": [{"role": "system", "content": "policy " * 2000},
                      {"role": "user", "content": f"question {i}"}],
         "prompt_tokens": 2900, "completion_tokens": 40,
         "cache_hit": "True" if i else "",
