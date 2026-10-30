@@ -36,9 +36,9 @@ seed 20261029; not real workload data):
 
 | Category | Samples | Mean exact tokens | Mean abs err | Median abs err | p90 abs err | Max abs err |
 | --- | --- | --- | --- | --- | --- | --- |
-| prose | 60 | 61 | 17.6% | 17.6% | 21.7% | 25.3% |
-| code | 60 | 44 | 15.8% | 13.3% | 27.3% | 30.3% |
-| json | 60 | 406 | 20.4% | 23.0% | 25.9% | 27.1% |
+| prose | 60 | 60 | 17.5% | 17.9% | 20.2% | 24.1% |
+| code | 60 | 45 | 14.8% | 12.1% | 23.3% | 27.8% |
+| json | 60 | 340 | 20.1% | 22.2% | 26.2% | 31.9% |
 
 Reproduce with `python -m tokaudit.benchmark --samples 60`, or measure the
 estimator on your own text with
