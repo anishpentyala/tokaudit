@@ -6,9 +6,10 @@ import argparse
 import json
 import sys
 from collections import defaultdict
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .dedup import find_duplicates
+from .integrity import run_integrity
 from .logs import load_log
 from .prefix import simulate
 from .prices import load_price_sheet
@@ -109,6 +110,32 @@ def _cmd_rules(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_integrity(args: argparse.Namespace) -> int:
+    findings = run_integrity(args.log)
+    by_name: Dict[str, list] = {}
+    for f in findings:
+        by_name.setdefault(f.invariant, []).append(f)
+    lines = [f"integrity: {len(findings)} finding(s) in {args.log}"]
+    for name in sorted(by_name):
+        group = by_name[name]
+        lines.append(f"\n{name}: {len(group)} record(s) "
+                     f"- consistent with {group[0].anchor}")
+        for f in group[:5]:
+            lines.append(f"  line {f.line} [{f.rid}]: {f.detail}")
+        if len(group) > 5:
+            lines.append(f"  ... and {len(group) - 5} more")
+    if findings:
+        lines.append("\nA finding means 'consistent with a documented failure "
+                     "class' - check the linked issue against your upstream "
+                     "versions. It is not proof of misbilling.")
+    text = "\n".join(lines)
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    print(text)
+    return 1 if (findings and args.fail_on_findings) else 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="tokaudit",
@@ -147,6 +174,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                       help="path to a .tokaudit.toml config file (defaults: "
                            "./.tokaudit.toml when present; CLI flags win)")
     p_an.set_defaults(func=_cmd_analyze)
+
+    p_int = sub.add_parser(
+        "integrity",
+        help="check accounting fields for internal consistency (offline; "
+             "each finding is anchored to a documented upstream failure class)")
+    p_int.add_argument("log", help="path to a JSONL request log")
+    p_int.add_argument("--output", default=None, help="write the report to a file")
+    p_int.add_argument("--fail-on-findings", action="store_true",
+                       help="exit 1 when any finding fires (for CI gating)")
+    p_int.set_defaults(func=_cmd_integrity)
 
     p_rules = sub.add_parser("rules", help="show the provider caching rules in use")
     p_rules.add_argument("--rules", default=None, help="path to a custom provider rules JSON")

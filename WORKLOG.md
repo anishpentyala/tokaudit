@@ -224,3 +224,22 @@ evidence and the wording fixed.
    3.11 (/tmp/tk311) the tuple raises TypeError. So pre-3.11 the corpus
    differed between processes (old README table = one arbitrary
    process's corpus); 3.11+ it crashes.
+
+Integrity subcommand added (2026-10-30): demand/gap research (saved at
+/home/sandbox/research/demand-gap-2026-10-30.md) found the token-waste
+audit niche crowded (aliquot, tokenaudit, warmpath, CacheCatch, etc.,
+all 2026, all ~0 stars) but a steady stream of accounting-CORRECTNESS
+bugs in litellm/langfuse where users are misbilled or budgets silently
+bypassed. Closest tool: TokenLedger/retoken (re-counts provider-billed
+tokens, EXACT/BOUNDED/UNVERIFIABLE labels; its conformance.py is a
+LIVE-call metering harness - determinism/linearity/additivity over
+provider-reported counts). Unoccupied shape: offline, schema-level
+accounting-integrity invariants over gateway/tracing log exports, no
+content capture, no live calls. Built as a tokaudit subcommand per
+main's guidance (feature, not new repo). Invariants are
+version-independent; fixtures are synthetic reproductions of the
+documented issue signatures (#48937, #40100, #35691-class, #35829,
+#25351, langfuse#14987); findings say "consistent with class X, check
+your versions", never "you were misbilled". Zero-spend invariant
+deliberately not fired on errored calls (#4604 direction) or on
+usage-absent records. 185 passed on 3.10 + 3.11 after the addition.
