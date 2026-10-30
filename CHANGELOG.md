@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Fail-closed logging parity: six malformed-input classes that crashed
+  with an uncaught traceback now exit cleanly with file:line context -
+  a non-list `messages` field, non-integer `actual_usage` values,
+  non-UTF-8 log files, JSON nested beyond the parser's recursion limit,
+  unreadable/missing log paths, and non-finite (`NaN`/`Infinity`)
+  reported-usage numbers in Helicone rows (now skipped like the other
+  adapters' malformed values). Non-finite timestamps are treated as
+  missing (conservative ordering) instead of silently poisoning TTL
+  comparisons.
+
+### Added
+
+- `tests/test_robustness.py`: hostile-input sweeps - record-mutation
+  and random-structure fuzz over the log parser (SystemExit or success,
+  never a traceback; 500 random records), estimator crash-resistance
+  over unicode soup incl. lone surrogates/control chars (2000 samples),
+  huge-input completion, count monotonicity at word boundaries (2000
+  random texts), and a pinned characterization of the known mid-word
+  cut anomaly (documented in the tokenizers docstring).
+
 All notable changes. Dates are commit dates; savings figures are always
 simulated estimates against dated provider rules, never observed billing.
 
