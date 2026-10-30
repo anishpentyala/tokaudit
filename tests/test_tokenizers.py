@@ -78,3 +78,54 @@ def test_get_backend_fallback():
     assert auto.name in ("exact", "estimate")
     with pytest.raises(ValueError):
         get_backend("nope")
+
+
+def test_dense_script_characters_score_per_character():
+    est = EstimatorBackend()
+    # 10 unspaced CJK characters: ~1.5 chars/token -> 20 units -> 6 tokens.
+    # The English word heuristic must NOT apply (would be 1 token).
+    assert est.count("これはテストですよね") == 6
+    # emoji score ~1 token each
+    assert est.count("🌍🚀😀") == 3
+
+
+def test_natural_word_length_cap():
+    est = EstimatorBackend()
+    # a 25-char alphabetic word is not an ordinary English word
+    assert est.count("antidisestablishmentarian") == 7  # ceil(25/4) tokens
+    assert est.count("short") == 1
+
+
+def test_long_id_runs_score_dense():
+    est = EstimatorBackend()
+    # 40-char hex sha: letters+digits, no structural chars -> 2 chars/token
+    assert est.count("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0") == 20
+    # same length but no digits: ordinary per-character rule
+    assert est.count("pneumonoultramicroscopicsilicovolcano") == 10
+
+
+def test_prefix_stability_completed_words_exact():
+    """Exact semantics: a prefix cut at a completed word or just after
+    whitespace yields an exact pseudo-token prefix; a mid-word cut shares
+    only up to the last completed word before the cut."""
+    est = EstimatorBackend()
+    full = "alpha beta gamma delta epsilon"
+    # cut at completed word (next char is whitespace)
+    prefix = "alpha beta"
+    assert est.encode(full)[: len(est.encode(prefix))] == est.encode(prefix)
+    # cut after whitespace
+    prefix = "alpha beta "
+    assert est.encode(full)[: len(est.encode(prefix))] == est.encode(prefix)
+    # mid-word cut: shared prefix ends at last completed word ("alpha ")
+    prefix = "alpha bet"
+    shared = est.encode("alpha ")
+    got = est.encode(full)[: len(est.encode(prefix))]
+    assert got[: len(shared)] == shared
+    assert got != est.encode(prefix)
+
+
+def test_prefix_stability_dense_scripts():
+    est = EstimatorBackend()
+    full = "結果 these are mixed 結果テスト words"
+    prefix = "結果 these are mixed"
+    assert est.encode(full)[: len(est.encode(prefix))] == est.encode(prefix)
