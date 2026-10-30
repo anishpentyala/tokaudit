@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Benchmark corpus seeding: `random.Random((seed, category))` hashed a
+  tuple, which was randomized per process (the "deterministic" corpus
+  differed run to run) and raises TypeError on Python 3.11+. Now seeded
+  with a string, stable across processes and versions; the corpus
+  content changes as a result, so the README's measured error table and
+  the tokenizers docstring figures are regenerated (prose/code/JSON
+  mean abs err now 17.5%/14.8%/20.1%). Cross-process determinism is
+  pinned by a subprocess regression test.
+
+- Fail-closed logging parity: six malformed-input classes that crashed
+  with an uncaught traceback now exit cleanly with file:line context -
+  a non-list `messages` field, non-integer `actual_usage` values,
+  non-UTF-8 log files, JSON nested beyond the parser's recursion limit,
+  unreadable/missing log paths, and non-finite (`NaN`/`Infinity`)
+  reported-usage numbers in Helicone rows (now skipped like the other
+  adapters' malformed values). Non-finite timestamps are treated as
+  missing (conservative ordering) instead of silently poisoning TTL
+  comparisons.
+
+### Changed
+
+- CI: dropped the Python 3.9 leg (3.9 is EOL and no longer available on
+  the ubuntu-latest runner image, which failed every run at setup) and
+  added 3.13; `requires-python` is now >=3.10. The code itself still
+  runs on 3.9; only the tested/supported window moved.
+
+### Added
+
+- `tests/test_robustness.py`: hostile-input sweeps - record-mutation
+  and random-structure fuzz over the log parser (SystemExit or success,
+  never a traceback; 500 random records), estimator crash-resistance
+  over unicode soup incl. lone surrogates/control chars (2000 samples),
+  huge-input completion, count monotonicity at word boundaries (2000
+  random texts), and a pinned characterization of the known mid-word
+  cut anomaly (documented in the tokenizers docstring).
+
 All notable changes. Dates are commit dates; savings figures are always
 simulated estimates against dated provider rules, never observed billing.
 

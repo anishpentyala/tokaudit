@@ -134,3 +134,31 @@ def test_cli_file_mode(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert len(payload) == 1
     assert payload[0]["category"] == "log_excerpt.txt"
+
+
+def test_corpus_deterministic_across_processes():
+    """Regression: the corpus must be identical across processes and
+    Python versions. It previously seeded random.Random with a tuple,
+    whose hash is randomized per process (and raises TypeError on
+    3.11+); the corpus is now seeded with a string."""
+    import hashlib
+    import os
+    import subprocess
+    import sys
+
+    snippet = (
+        "import hashlib, json\n"
+        "from tokaudit.benchmark import synthetic_corpus\n"
+        "c = synthetic_corpus(5, 20261029)\n"
+        "print(hashlib.sha256(json.dumps(c, sort_keys=True).encode())"
+        ".hexdigest())\n"
+    )
+    digests = []
+    for hashseed in ("1", "2"):
+        env = dict(os.environ, PYTHONHASHSEED=hashseed)
+        out = subprocess.run(
+            [sys.executable, "-c", snippet],
+            capture_output=True, text=True, env=env, check=True,
+        )
+        digests.append(out.stdout.strip())
+    assert digests[0] == digests[1]
