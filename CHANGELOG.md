@@ -7,6 +7,10 @@ simulated estimates against dated provider rules, never observed billing.
 
 ### Added
 
+- `tokaudit.benchmark --file PATH`: measure the estimator against
+  tiktoken on your own UTF-8 text (chunked at configurable sizes),
+  so estimate-mode error can be checked on real logs before trusting
+  it. Fails closed on missing, empty, undecodable, or too-short input.
 - `tokaudit.benchmark`: deterministic synthetic corpus benchmark
   (`python -m tokaudit.benchmark`) measuring EstimatorBackend against
   tiktoken o200k_base per content category (prose/code/JSON) with
@@ -33,6 +37,10 @@ simulated estimates against dated provider rules, never observed billing.
   in the README, including the remaining weak spots (Vietnamese,
   Russian/Arabic, Thai, repetitive text).
 
+- `tokaudit.benchmark --file PATH`: measure the estimator against
+  tiktoken on your own UTF-8 text (chunked at configurable sizes),
+  so estimate-mode error can be checked on real logs before trusting
+  it. Fails closed on missing, empty, undecodable, or too-short input.
 - `tokaudit.benchmark`: deterministic synthetic corpus benchmark
   (`python -m tokaudit.benchmark`) measuring EstimatorBackend against
   tiktoken o200k_base per content category (prose/code/JSON) with
