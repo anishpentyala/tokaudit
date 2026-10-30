@@ -26,7 +26,21 @@ Given a JSONL request log, tokaudit:
 - **Flags requests below the minimum cacheable length** and wasted cache
   writes (prefixes written but never re-used, which cost extra).
 - **Counts tokens exactly** with `tiktoken` when installed, or with a
-  dependency-free estimator (~4 chars/token on prose/code, denser on structural JSON; measured error vs tiktoken o200k_base ~2% JSON, ~10% code, ~27% prose).
+  dependency-free estimator (word-based heuristic: ~4/3 token per natural-language word, per-character scoring on symbol-heavy words).
+
+Estimator accuracy, measured against tiktoken o200k_base on the deterministic
+SYNTHETIC corpus in `tokaudit.benchmark` (60 generated samples per category,
+seed 20261029; not real workload data):
+
+| Category | Samples | Mean exact tokens | Mean abs err | Median abs err | p90 abs err | Max abs err |
+| --- | --- | --- | --- | --- | --- | --- |
+| prose | 60 | 67 | 18.1% | 18.6% | 21.9% | 23.7% |
+| code | 60 | 42 | 16.2% | 13.0% | 26.7% | 27.8% |
+| json | 60 | 342 | 19.4% | 22.4% | 26.0% | 29.0% |
+
+Reproduce with `python -m tokaudit.benchmark --samples 60`. Highly repetitive
+text compresses better under BPE than a length heuristic can see, so error
+grows on repetitive input. Use `--tokenizer exact` for exact counts.
 
 What it is not: a neural prompt compressor. It never rewrites your
 prompts, so there is no risk of changing model behavior. It measures
