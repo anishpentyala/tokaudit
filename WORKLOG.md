@@ -194,3 +194,33 @@ CI surfaced two pre-existing breakages, both fixed in this PR:
    o200k_base, 60 samples/category); cross-process determinism pinned
    by a subprocess regression test. Verified identical corpus hash
    under PYTHONHASHSEED=1/999, suites green on 3.10 and 3.11 locally.
+
+Correction (2026-10-30, post-merge review by main): two claims in the
+PR #6 changelog/worklog were imprecise; both re-derived from direct
+evidence and the wording fixed.
+
+1. 3.9 CI leg: "EOL, unavailable on ubuntu-latest" conflated cause.
+   Actual root cause: actions/python-versions publishes 3.9 builds only
+   for linux 22.04 and 24.04 (checked versions-manifest.json: 3.9.25
+   files = darwin, linux/22.04, linux/24.04; compare 3.10.22 which
+   also has linux/26.04). ubuntu-latest now resolves to Ubuntu 26.04,
+   so setup-python failed with "The version '3.9' with architecture
+   'x64' was not found for Ubuntu 26.04" (job 124239420049). Dropping
+   requires-python >=3.9 was a user-facing compatibility regression
+   with no code-level justification (tree parses under the 3.9 grammar,
+   every module uses `from __future__ import annotations`, tomllib has
+   a tomli fallback with a python_version<'3.11' dependency marker,
+   tiktoken requires >=3.9). Restored: requires-python back to >=3.9,
+   3.9 leg pinned to ubuntu-24.04.
+
+2. Tuple benchmark seed: the mechanism is now documented and
+   reproduced, not inferred. CPython docs for random.Random: "Changed
+   in version 3.11: Formerly the seed could be any hashable object. Now
+   it is limited to: None, int, float, str, bytes, or bytearray."
+   Reproduced on 3.10 (/tmp/srv): random.Random((60,'prose')).random()
+   = 0.10554... under PYTHONHASHSEED=1 vs 0.41402... under
+   PYTHONHASHSEED=999 (per-process salted string hash inside the tuple
+   hash); the string seed '60:prose' gives 0.78737... under both. On
+   3.11 (/tmp/tk311) the tuple raises TypeError. So pre-3.11 the corpus
+   differed between processes (old README table = one arbitrary
+   process's corpus); 3.11+ it crashes.
