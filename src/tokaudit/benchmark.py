@@ -91,7 +91,9 @@ def synthetic_corpus(samples_per_category: int = 30, seed: int = 20261029) -> Di
         raise ValueError("samples_per_category must be >= 1")
     corpus: Dict[str, List[str]] = {}
     for category in CATEGORIES:
-        rng = random.Random((seed, category))
+        rng = random.Random(f"{seed}:{category}")  # str seed: stable across
+        # Python versions and processes (a tuple seed hashed per-process
+        # before 3.11 and raises TypeError on 3.11+)
         if category == "prose":
             gen = _prose_sample
         elif category == "code":
