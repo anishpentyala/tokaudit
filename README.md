@@ -40,7 +40,10 @@ seed 20261029; not real workload data):
 | code | 60 | 44 | 15.8% | 13.3% | 27.3% | 30.3% |
 | json | 60 | 406 | 20.4% | 23.0% | 25.9% | 27.1% |
 
-Reproduce with `python -m tokaudit.benchmark --samples 60`.
+Reproduce with `python -m tokaudit.benchmark --samples 60`, or measure the
+estimator on your own text with
+`python -m tokaudit.benchmark --file your_log_excerpt.txt` (chunks the file
+and reports the same error statistics; requires `tokaudit[exact]`).
 
 Held-out validation on independently sourced texts (chunked at 200/800/3000
 characters, mean absolute error vs tiktoken o200k_base; sources are public
