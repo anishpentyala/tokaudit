@@ -205,7 +205,14 @@ provider usage or billing data.
 - Savings are in multiples of the base input rate, not dollars, so the
   result stays correct as prices change. Multiply by your current price.
 - The estimator backend is a heuristic; use `--tokenizer exact` for
-  decisions that depend on exact counts.
+  decisions that depend on exact counts. Estimator error propagates into
+  simulated savings in either direction - the error in a savings figure
+  depends on the estimator's error on BOTH the baseline and the
+  optimized run, so no general conservative-direction claim holds. On
+  the two shipped example logs, `--tokenizer estimate` overstates saved
+  units by 10-12% versus `--tokenizer exact`; on JSON-heavy logs the
+  estimator undercounts tokens instead. Treat estimator-mode savings as
+  approximate in magnitude, not bounded in direction.
 
 Multi-turn conversations are handled naturally: when each request
 carries its full message history, later turns re-read the cached
