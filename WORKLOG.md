@@ -2,6 +2,27 @@
 
 Factual record of work sessions. Newest first.
 
+## 2026-10-30 (session 3, ~16:15 PDT, Instinct assistant) - integrity hardening
+- Main reviewed the merged integrity feature (PR #8) and required
+  validation against legitimate counterexamples before the checks stand:
+  zero/free/cached pricing, discounts/rounding, cache or reasoning fields
+  in usage schemas, retried/streamed events sharing one request_id,
+  upstream cost fields that are a documented provider contract.
+- Verified against primary sources: LiteLLM's anthropic transformation
+  (main branch) folds cache_read/cache_creation into prompt_tokens and
+  sets total = prompt + completion, so the usage-sum assumption holds
+  for LiteLLM-mapped records; OpenRouter documents a usage cost field as
+  part of its usage-accounting API (a legitimate contract, not a leak).
+- Hardened the checks (PR #9): usage-sum mismatch suppressed when
+  explicit cache fields exactly explain the gap; upstream cost-field
+  check suppressed on OpenRouter-marked records; every finding now names
+  the legitimate alternatives it cannot rule out (zero-priced models,
+  cached/discounted calls, retry/stream re-emissions, discounts, unit
+  mismatches) and states its schema assumption; CLI footer and README
+  carry the same epistemics; "invariants"/"version-independent" wording
+  replaced with bounded claims. 9 new synthetic negative tests;
+  194 passed on Python 3.10 and 3.11.
+
 ## 2026-10-28 (session 2, ~08:19 PDT, Instinct assistant) - v0.2.0
 - Direction change from Anish via main: 70% daily usage is a TARGET for
   meaningful work on the GitHub EC, not just a ceiling. Work sessions
