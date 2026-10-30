@@ -40,6 +40,34 @@ seed 20261029; not real workload data):
 | code | 60 | 45 | 14.8% | 12.1% | 23.3% | 27.8% |
 | json | 60 | 340 | 20.1% | 22.2% | 26.2% | 31.9% |
 
+## Accounting integrity checks
+
+`tokaudit analyze` finds token waste. `tokaudit integrity` answers a
+different question: are the accounting fields themselves internally
+consistent? Upstream bugs regularly say no - and when spend reads $0,
+budgets silently stop enforcing
+([litellm#48937](https://github.com/BerriAI/litellm/issues/48937)).
+
+```bash
+python -m tokaudit.cli integrity your_log.jsonl
+# add --fail-on-findings to exit 1 when anything fires (CI gating)
+```
+
+Version-independent invariants over the raw records (LiteLLM SpendLogs,
+Helicone rows, Langfuse exports): zero spend on token-bearing non-error
+calls, spend vs cost_breakdown disagreement, usage sums that don't add
+up, duplicate-billed request IDs, provider-reported cost fields inside
+usage chunks, and non-numeric/non-finite accounting fields. Offline; no
+request content is read.
+
+Every finding is labelled with the documented upstream failure class
+whose signature it matches (e.g. litellm #40100/#48937/#35829/#25351,
+langfuse #14987) and a link to the issue. A finding means "consistent
+with that class" - whether it applies depends on your upstream versions,
+and it is never proof of misbilling; legitimate $0 spends exist. The
+test fixtures are synthetic records built to reproduce each documented
+signature, not observed provider data.
+
 Reproduce with `python -m tokaudit.benchmark --samples 60`, or measure the
 estimator on your own text with
 `python -m tokaudit.benchmark --file your_log_excerpt.txt` (chunks the file
