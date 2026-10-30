@@ -39,14 +39,32 @@ def test_estimator_prefix_stable():
     assert full[: n - 1] == prefix[: n - 1]
 
 
-@pytest.mark.parametrize("text,label", [(PROSE, "prose"), (CODE, "code"), (JSONISH, "json")])
-def test_estimator_within_tolerance_of_tiktoken(text, label):
+@pytest.mark.parametrize(
+    "text,label,tol",
+    [(PROSE, "prose", 0.30), (CODE, "code", 0.12), (JSONISH, "json", 0.10)],
+)
+def test_estimator_within_tolerance_of_tiktoken(text, label, tol):
     tiktoken = pytest.importorskip("tiktoken")
     enc = tiktoken.get_encoding("o200k_base")
     exact = len(enc.encode(text))
     est = EstimatorBackend().count(text)
     err = abs(est - exact) / exact
-    assert err <= 0.30, f"{label}: estimator {est} vs exact {exact} (err {err:.2%})"
+    assert err <= tol, f"{label}: estimator {est} vs exact {exact} (err {err:.2%}, tol {tol:.0%})"
+
+
+def test_structural_blocks_count_double():
+    """JSON-ish 4-char blocks (2+ structural chars) count as 2 pseudo-tokens;
+    the decision is per block, preserving prefix stability."""
+    est = EstimatorBackend()
+    # '{"a"' is one 4-char block with 3 structural chars -> 2 tokens
+    assert est.count('{"a"') == 2
+    # plain prose block stays 1
+    assert est.count("abcd") == 1
+    # prefix stability with mixed content
+    full = est.encode('pre {"a": 1} post')
+    prefix = est.encode('pre {"a": 1}')
+    n = len(prefix)
+    assert full[: n - 1] == prefix[: n - 1]
 
 
 def test_get_backend_fallback():
