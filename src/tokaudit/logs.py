@@ -25,6 +25,7 @@ requests from the same workload are preserved.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -60,6 +61,12 @@ def _parse_ts(value: Any) -> Optional[float]:
     if value is None:
         return None
     if isinstance(value, (int, float)):
+        # json.loads accepts the non-standard NaN/Infinity literals; a
+        # non-finite timestamp must not enter TTL arithmetic (NaN
+        # comparisons are silently False), so treat it like an
+        # unparseable string: no timestamp, conservative ordering.
+        if not math.isfinite(value):
+            return None
         return float(value)
     if isinstance(value, str):
         try:
@@ -96,6 +103,24 @@ def _breakpoint_marked(content: Any) -> bool:
     return False
 
 
+
+def _parse_actual_usage(value: Any, rid: str) -> Optional[Dict[str, int]]:
+    """Provider-reported usage from a raw record. Values are coerced with
+    int(); malformed values (None, lists, NaN/Infinity) raise a clear
+    error rather than an uncaught TypeError/OverflowError."""
+    if not isinstance(value, dict):
+        return None
+    usage: Dict[str, int] = {}
+    for k, v in value.items():
+        try:
+            usage[str(k)] = int(v)
+        except (TypeError, OverflowError, ValueError) as exc:
+            raise ValueError(
+                f"record {rid}: actual_usage.{k} is not an integer "
+                f"({v!r}): {exc}"
+            ) from exc
+    return usage
+
 def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
     rid = str(obj.get("id") or f"req-{idx}")
     model = str(obj.get("model") or "unknown")
@@ -117,6 +142,11 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
         if prompt is None:
             raise ValueError(f"record {rid}: no messages/prompt field")
         raw_messages = [{"role": "user", "content": prompt}]
+    if not isinstance(raw_messages, list):
+        raise ValueError(
+            f"record {rid}: messages must be a list, got "
+            f"{type(raw_messages).__name__}"
+        )
 
     for m in raw_messages:
         if not isinstance(m, dict):
@@ -145,31 +175,38 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
             if (obj.get("prompt_cache_key") or obj.get("cache_key"))
             else None
         ),
-        actual_usage=(
-            {str(k): int(v) for k, v in obj["actual_usage"].items()}
-            if isinstance(obj.get("actual_usage"), dict)
-            else None
-        ),
+        actual_usage=_parse_actual_usage(obj.get("actual_usage"), rid),
     )
 
 
 def load_log(path: str) -> List[Request]:
     requests: List[Request] = []
-    with open(path, "r", encoding="utf-8") as fh:
-        for idx, line in enumerate(fh):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"{path}:{idx + 1}: invalid JSON: {exc}")
-            if not isinstance(obj, dict):
-                raise SystemExit(f"{path}:{idx + 1}: expected a JSON object per line")
-            try:
-                requests.append(parse_record(adapt(obj), idx))
-            except ValueError as exc:
-                raise SystemExit(f"{path}:{idx + 1}: {exc}")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for idx, line in enumerate(fh):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise SystemExit(f"{path}:{idx + 1}: invalid JSON: {exc}")
+                except RecursionError:
+                    raise SystemExit(
+                        f"{path}:{idx + 1}: JSON nested too deeply to parse"
+                    )
+                if not isinstance(obj, dict):
+                    raise SystemExit(
+                        f"{path}:{idx + 1}: expected a JSON object per line"
+                    )
+                try:
+                    requests.append(parse_record(adapt(obj), idx))
+                except ValueError as exc:
+                    raise SystemExit(f"{path}:{idx + 1}: {exc}")
+    except OSError as exc:
+        raise SystemExit(f"{path}: cannot read log: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"{path}: not valid UTF-8: {exc}") from exc
     if not requests:
         raise SystemExit(f"no requests found in {path}")
     return requests
