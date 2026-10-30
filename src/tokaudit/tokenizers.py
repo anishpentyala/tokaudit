@@ -21,8 +21,13 @@ Two backends are provided:
   hold: a mid-word cut can still match exactly when the boundary word's
   weight crosses no additional third-token boundaries differently
   (example: ``"ab {"`` vs ``"ab { cdef"`` match exactly), so callers
-  must not rely on mid-word divergence as a signal. Property tests cover
-  the guaranteed directions over thousands of random cuts. Measured mean absolute error against tiktoken
+  must not rely on mid-word divergence as a signal. A mid-word cut can
+  also produce MORE pseudo-tokens than the full text: the cut word can
+  score under the long-ID-run regime while the completed word re-scores
+  per character (pinned in ``tests/test_robustness.py``). Count
+  monotonicity therefore holds only at completed-word boundaries.
+  Property tests cover the guaranteed directions over thousands of
+  random cuts. Measured mean absolute error against tiktoken
   o200k_base on the deterministic synthetic corpus in
   ``tokaudit.benchmark`` (60 samples per category): prose ~18%, code
   ~16%, JSON ~19%; held-out measurements on independently sourced texts
