@@ -26,7 +26,9 @@ Given a JSONL request log, tokaudit:
 - **Flags requests below the minimum cacheable length** and wasted cache
   writes (prefixes written but never re-used, which cost extra).
 - **Counts tokens exactly** with `tiktoken` when installed, or with a
-  dependency-free estimator (word-based heuristic: ~4/3 token per natural-language word, per-character scoring on symbol-heavy words).
+  dependency-free estimator (word-based heuristic: ~4/3 token per short
+  natural-language word; per-character scoring on symbol-heavy words,
+  dense scripts, emoji, and long ID/hash runs).
 
 Estimator accuracy, measured against tiktoken o200k_base on the deterministic
 SYNTHETIC corpus in `tokaudit.benchmark` (60 generated samples per category,
@@ -34,13 +36,37 @@ seed 20261029; not real workload data):
 
 | Category | Samples | Mean exact tokens | Mean abs err | Median abs err | p90 abs err | Max abs err |
 | --- | --- | --- | --- | --- | --- | --- |
-| prose | 60 | 67 | 18.1% | 18.6% | 21.9% | 23.7% |
-| code | 60 | 42 | 16.2% | 13.0% | 26.7% | 27.8% |
-| json | 60 | 342 | 19.4% | 22.4% | 26.0% | 29.0% |
+| prose | 60 | 61 | 17.6% | 17.6% | 21.7% | 25.3% |
+| code | 60 | 44 | 15.8% | 13.3% | 27.3% | 30.3% |
+| json | 60 | 406 | 20.4% | 23.0% | 25.9% | 27.1% |
 
-Reproduce with `python -m tokaudit.benchmark --samples 60`. Highly repetitive
-text compresses better under BPE than a length heuristic can see, so error
-grows on repetitive input. Use `--tokenizer exact` for exact counts.
+Reproduce with `python -m tokaudit.benchmark --samples 60`.
+
+Held-out validation on independently sourced texts (chunked at 200/800/3000
+characters, mean absolute error vs tiktoken o200k_base; sources are public
+domain, permissively licensed, or public API responses):
+
+| Text | Source / license | Before rework | After |
+| --- | --- | --- | --- |
+| English prose (Pride and Prejudice) | Project Gutenberg, public domain | 6.7% | 6.8% |
+| French prose (Les Miserables I) | Project Gutenberg, public domain | 15.9% | 15.9% |
+| Python code (cpython Lib/argparse.py) | PSF-2.0 | 12.9% | 7.8% |
+| Real API JSON (GitHub REST responses) | api.github.com public responses | 30.9% | 19.0% |
+| UDHR English/French/Spanish/German | unicode.org/udhr (free with attribution) | 3.7-16.8% | unchanged |
+| UDHR Hindi | same | 6.9% | 6.9% |
+| UDHR Russian / Arabic | same | 22.8% / 23.3% | unchanged (known limit) |
+| UDHR Vietnamese | same | 47.1% | unchanged (known limit) |
+| UDHR Japanese / Chinese | same | 96.4% / 93.1% | 26.1% / 20.4% |
+| UDHR Korean / Khmer / Myanmar | same | 43.6% / 57.7% / 50.6% | 14.5% / 5.7% / 18.0% |
+| UDHR Thai | same | 49.8% | 52.5% over (known limit) |
+| Emoji-heavy mixed text | constructed sample | 15% under | matches exactly |
+
+Known weak spots, stated plainly: Vietnamese (~47% under), Russian and Arabic
+(~23% under), Thai (~52% over), and highly repetitive text (~27% over on a
+repeated-sentence fixture - BPE compresses repetition a length heuristic
+cannot see). Unspaced scripts were the worst case before this rework
+(93-97% under) and are now bounded but still approximate. Use
+`--tokenizer exact` for exact counts.
 
 What it is not: a neural prompt compressor. It never rewrites your
 prompts, so there is no risk of changing model behavior. It measures
