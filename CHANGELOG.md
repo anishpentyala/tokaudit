@@ -17,6 +17,32 @@ simulated estimates against dated provider rules, never observed billing.
 ### Changed
 
 - EstimatorBackend reworked from fixed 4-character blocks to per-word
+  scoring in thirds of a pseudo-token: short natural-language words
+  (85%+ letters, <=20 chars) score 4/3 (the standard ~0.75 words/token
+  English heuristic); symbol-heavy words score ~2/3 token per structural
+  character ({}[]",:) plus ~1 token per 4 remaining characters;
+  dense-script characters (CJK, kana, Hangul, Thai, Khmer, Myanmar)
+  score ~2/3 token each; emoji 1 each; long alphanumeric ID/hash runs
+  ~1 token per 2 characters. Exact prefix semantics are now documented
+  and property-tested: exact prefix matching holds at completed-word
+  boundaries only; mid-word cuts share up to the last completed word.
+  Measured on the synthetic benchmark corpus: prose 17.6%, code 15.8%,
+  JSON 20.4% mean absolute error. Held-out validation on independently
+  sourced texts (Gutenberg public-domain prose, cpython PSF-2.0 code,
+  GitHub public API JSON, unicode.org UDHR translations) is tabulated
+  in the README, including the remaining weak spots (Vietnamese,
+  Russian/Arabic, Thai, repetitive text).
+
+- `tokaudit.benchmark`: deterministic synthetic corpus benchmark
+  (`python -m tokaudit.benchmark`) measuring EstimatorBackend against
+  tiktoken o200k_base per content category (prose/code/JSON) with
+  mean/median/p90/max absolute error. Seeded template generation, no
+  network, fails closed on empty categories or samples. Results are
+  labeled synthetic; they describe the estimator on this corpus only.
+
+### Changed
+
+- EstimatorBackend reworked from fixed 4-character blocks to per-word
   scoring in thirds of a pseudo-token: natural-language words (85%+
   ASCII letters) score 4/3 (the standard ~0.75 words/token English
   heuristic); symbol-heavy words score ~2/3 token per structural
