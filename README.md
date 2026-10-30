@@ -53,18 +53,23 @@ python -m tokaudit.cli integrity your_log.jsonl
 # add --fail-on-findings to exit 1 when anything fires (CI gating)
 ```
 
-Version-independent invariants over the raw records (LiteLLM SpendLogs,
-Helicone rows, Langfuse exports): zero spend on token-bearing non-error
-calls, spend vs cost_breakdown disagreement, usage sums that don't add
-up, duplicate-billed request IDs, provider-reported cost fields inside
-usage chunks, and non-numeric/non-finite accounting fields. Offline; no
-request content is read.
+Offline consistency checks over the raw records (LiteLLM SpendLogs,
+Helicone rows, Langfuse exports), each with a stated schema assumption:
+zero spend on token-bearing non-error calls, spend vs cost_breakdown
+disagreement, usage sums that don't add up (assuming the OpenAI/LiteLLM
+usage shape; records whose own fields document a cache-inclusive sum are
+not flagged), duplicate-billed request IDs, provider-reported cost
+fields inside usage chunks (suppressed on providers where that field is
+a documented contract, e.g. OpenRouter), and non-numeric/non-finite
+accounting fields. Offline; no request content is read.
 
 Every finding is labelled with the documented upstream failure class
 whose signature it matches (e.g. litellm #40100/#48937/#35829/#25351,
 langfuse #14987) and a link to the issue. A finding means "consistent
-with that class" - whether it applies depends on your upstream versions,
-and it is never proof of misbilling; legitimate $0 spends exist. The
+with that class under the stated schema assumption" - whether it applies
+depends on your upstream versions, and it is a signal, never proof of
+misbilling; legitimate $0 spends, discounts, cached calls and retry
+re-emissions exist and are named in the finding text where they apply. The
 test fixtures are synthetic records built to reproduce each documented
 signature, not observed provider data.
 
