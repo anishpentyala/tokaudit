@@ -5,11 +5,18 @@
 ### Added
 
 - `tokaudit integrity`: offline accounting-integrity checks over the
-  supported log formats - version-independent invariants (zero spend on
-  token-bearing non-error calls, spend/cost_breakdown disagreement,
-  usage-sum mismatch, duplicate-billed request IDs, provider-reported
-  cost fields in usage chunks, non-numeric accounting fields), each
-  finding anchored to the documented upstream failure class it matches
+  supported log formats - consistency checks with stated schema
+  assumptions (zero spend on token-bearing non-error calls,
+  spend/cost_breakdown disagreement, usage-sum mismatch, duplicate-billed
+  request IDs, provider-reported cost fields in usage chunks, non-numeric
+  accounting fields), each finding anchored to the documented upstream
+  failure class it matches and naming the legitimate alternatives
+  (zero-priced models, cached or discounted calls, retry re-emissions,
+  provider cost-field contracts) that the record cannot rule out.
+  Documented legitimate patterns stay quiet: cache-inclusive usage sums
+  are not flagged when the record's cache fields exactly explain the gap,
+  and OpenRouter's documented usage cost field is not flagged on records
+  that name OpenRouter as provider.
   (litellm #48937/#40100/#35691-class, #35829, #25351; langfuse #14987)
   with a link, never asserted as proof of misbilling.
   `--fail-on-findings` for CI gating. 16 tests with synthetic fixtures.
