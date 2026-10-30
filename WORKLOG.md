@@ -182,3 +182,15 @@ Added tests/test_robustness.py (15 tests: 10 targeted regressions +
 mutation sweep + 500-record random fuzz + estimator unicode/huge-input/
 monotonicity sweeps). NOTE: /tmp/tv venv points at the /tmp/tokaudit-fresh
 clone, NOT the working tree - the live venv for this repo is /tmp/srv.
+
+CI surfaced two pre-existing breakages, both fixed in this PR:
+1. Python 3.9 leg fails at setup (EOL, unavailable on ubuntu-latest) -
+   matrix moved to 3.10-3.13, requires-python >=3.10.
+2. test_benchmark failed on 3.11+: the corpus seeded random.Random
+   with a tuple - per-process-randomized pre-3.11 (so the README's
+   measured table was one arbitrary process's corpus), TypeError on
+   3.11+. Fixed with a string seed; corpus content changed; README
+   table + docstring figures regenerated on the new corpus (tiktoken
+   o200k_base, 60 samples/category); cross-process determinism pinned
+   by a subprocess regression test. Verified identical corpus hash
+   under PYTHONHASHSEED=1/999, suites green on 3.10 and 3.11 locally.
