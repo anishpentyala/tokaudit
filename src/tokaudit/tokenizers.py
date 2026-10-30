@@ -4,16 +4,22 @@ Two backends are provided:
 
 - ``TiktokenBackend``: exact token counts using OpenAI's ``tiktoken``
   (optional dependency, ``pip install tokaudit[exact]``).
-- ``EstimatorBackend``: dependency-free heuristic. It chunks text into
-  fixed-size character blocks, averaging one "token" per ``CHUNK_CHARS``
-  characters, except that structural JSON-ish blocks count double (real
-  BPE tokenizers are much denser on JSON). Real BPE tokenizers vary by
-  content type, so treat estimator counts as approximate; measured error
-  against tiktoken o200k_base is ~2% on structural JSON, ~10% on dense
-  code, and ~27% on prose (overestimate, the conservative direction for
-  savings analysis). ``tests/test_tokenizers.py`` measures the error
-  against tiktoken on a mixed corpus and asserts it stays within
-  documented per-content tolerances.
+- ``EstimatorBackend``: dependency-free heuristic. It scores each
+  whitespace-delimited word in thirds of a pseudo-token: natural-language
+  words (85%+ ASCII letters) score 4/3 (the standard ~0.75 words/token
+  English heuristic), while symbol-heavy words score per character -
+  ~2/3 token per structural character (``{}[]",:``) and ~1 token per 4
+  remaining characters - because real BPE tokenizers merge structural
+  JSON punctuation densely. Word weights are additive, so the estimate
+  is prefix-stable up to rounding at the boundary word. Measured mean
+  absolute error against tiktoken o200k_base on the deterministic
+  synthetic corpus in ``tokaudit.benchmark`` (60 samples per category):
+  prose ~18%, code ~15%, JSON ~19% - see the README table. Highly
+  repetitive text compresses better under BPE than any length heuristic
+  can see, so error grows on repetitive input (overestimate).
+  ``tests/test_tokenizers.py`` measures the error against tiktoken on
+  fixed fixtures and asserts it stays within documented per-content
+  tolerances.
 
 Both backends expose ``encode(text) -> list[int]`` so prefix analysis can
 compare token sequences, and ``count(text) -> int``.
@@ -23,17 +29,18 @@ from __future__ import annotations
 
 from typing import Callable, List
 
-CHUNK_CHARS = 4
-"""Average characters per token assumed by the estimator backend."""
-
 _STRUCT_CHARS = frozenset('{}[]",:')
-_STRUCT_WEIGHT = 2
-"""A 4-char block with 2+ structural characters (JSON-ish) counts as 2
-pseudo-tokens. Real BPE tokenizers average ~2 characters per token on
-structural JSON versus ~4+ on prose, and API request/response logs are
-JSON-dominated, so this keeps the estimator close on its main input. The
-decision is per block, so prefix stability is preserved: a shared text
-prefix still yields a shared pseudo-token prefix."""
+_NATURAL_ALPHA_RATIO = 0.85
+_UNITS_PER_TOKEN = 3
+_NATURAL_WORD_UNITS = 4
+"""Word weights in thirds of a pseudo-token. A natural-language word
+scores 4/3 (OpenAI's rule of thumb of ~0.75 words per token for English).
+A symbol-heavy word scores per character: ~2/3 token per structural
+character and ~1 token per 4 remaining characters, because real BPE
+tokenizers merge structural JSON punctuation densely while ordinary
+characters average ~4 per token. The decision is per word and weights
+are additive, so a shared text prefix yields a shared pseudo-token
+prefix up to rounding at the boundary word."""
 
 
 class TiktokenBackend:
@@ -59,18 +66,27 @@ class EstimatorBackend:
 
     name = "estimate"
 
+    @staticmethod
+    def _word_units(word: str) -> int:
+        letters = sum(c.isalpha() for c in word)
+        if letters / len(word) >= _NATURAL_ALPHA_RATIO:
+            return _NATURAL_WORD_UNITS
+        structural = sum(c in _STRUCT_CHARS for c in word)
+        # Structural characters cost ~2/3 token each (BPE merges common
+        # pairs like `":`); the remaining characters average 4 per token.
+        return 2 * structural + _UNITS_PER_TOKEN * max(
+            1, -(-(len(word) - structural) // 4)
+        )
+
     def encode(self, text: str) -> List[int]:
         if not text:
             return []
         tokens: List[int] = []
-        for i in range(0, len(text), CHUNK_CHARS):
-            block = text[i : i + CHUNK_CHARS]
-            weight = (
-                _STRUCT_WEIGHT
-                if sum(c in _STRUCT_CHARS for c in block) >= 2
-                else 1
-            )
-            tokens.extend([hash(block)] * weight)
+        units = 0
+        for word in text.split():
+            units += self._word_units(word)
+            while len(tokens) < units // _UNITS_PER_TOKEN:
+                tokens.append(hash(word))
         return tokens
 
     def count(self, text: str) -> int:
