@@ -167,3 +167,18 @@ Factual record of work sessions. Newest first.
 ## 2026-10-30 ~1:14 AM PT - benchmark --file mode
 
 - Shipped `python -m tokaudit.benchmark --file PATH [--chunk-sizes]`: measures estimator error vs tiktoken on user-supplied UTF-8 text (chunked, same mean/median/p90/max table). Makes the held-out validation methodology reproducible on anyone's own logs; directly supports the README's "check estimate-mode error on your data before trusting it" guidance. Fail-closed on missing/empty/undecodable/too-short input and bad chunk sizes. Sanity: en_prose held-out file gives 6.4% mean, consistent with the earlier 6.7% chunked measurement. 4 new tests. 153/153 pass.
+
+## 2026-10-30: hostile-input robustness pass
+
+Probe-first audit of the fail-closed contract (probe: malformed record
+shapes x file-level faults x non-finite JSON literals). Found six
+uncaught-traceback classes escaping the clean-SystemExit contract;
+fixed all in logs.py/adapters.py (explicit validation, not blanket
+except). Helicone NaN/Infinity/bool usage values now skip conservatively
+(matching LiteLLM/Langfuse); non-finite ts treated as missing. Also
+characterized the estimator's mid-word ID-run count anomaly - pinned as
+a documented limitation (no scoring change; benchmarks stay valid).
+Added tests/test_robustness.py (15 tests: 10 targeted regressions +
+mutation sweep + 500-record random fuzz + estimator unicode/huge-input/
+monotonicity sweeps). NOTE: /tmp/tv venv points at the /tmp/tokaudit-fresh
+clone, NOT the working tree - the live venv for this repo is /tmp/srv.
