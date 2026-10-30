@@ -9,6 +9,7 @@ from tokaudit.benchmark import (
     BenchmarkRow,
     main,
     run_benchmark,
+    run_file_benchmark,
     synthetic_corpus,
     to_markdown,
 )
@@ -93,3 +94,43 @@ def test_cli_markdown_output(capsys):
     rc = main(["--samples", "3"])
     assert rc == 0
     assert "| Category |" in capsys.readouterr().out
+
+
+def test_file_benchmark_roundtrip(tmp_path):
+    f = tmp_path / "sample.txt"
+    f.write_text("The quick brown fox jumps over the lazy dog. " * 200)
+    row = run_file_benchmark(str(f), [200, 800])
+    assert row.category == "sample.txt"
+    assert row.samples > 0
+    assert 0.0 <= row.median_abs_pct < 100.0
+    assert row.exact_mean > 0
+
+
+def test_file_benchmark_fails_closed(tmp_path):
+    with pytest.raises(ValueError):
+        run_file_benchmark(str(tmp_path / "missing.txt"), [200])
+    empty = tmp_path / "empty.txt"
+    empty.write_text("   \n  ")
+    with pytest.raises(ValueError):
+        run_file_benchmark(str(empty), [200])
+    short = tmp_path / "short.txt"
+    short.write_text("tiny")
+    with pytest.raises(ValueError):
+        run_file_benchmark(str(short), [500])
+
+
+def test_file_benchmark_rejects_bad_chunk_size(tmp_path):
+    f = tmp_path / "sample.txt"
+    f.write_text("words " * 100)
+    with pytest.raises(ValueError):
+        run_file_benchmark(str(f), [0])
+
+
+def test_cli_file_mode(tmp_path, capsys):
+    f = tmp_path / "log_excerpt.txt"
+    f.write_text('{"role": "user", "content": "hello"}' * 50)
+    rc = main(["--file", str(f), "--chunk-sizes", "100", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["category"] == "log_excerpt.txt"
