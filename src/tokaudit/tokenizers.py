@@ -12,13 +12,17 @@ Two backends are provided:
   (``{}[]",:``), ~1 token per 4 others); dense-script characters (CJK,
   kana, Hangul, Thai, Khmer, Myanmar) score ~2/3 token each, emoji 1
   each, and long alphanumeric ID/hash runs ~1 token per 2 characters.
-  Exact prefix semantics (verified by property tests over thousands of
-  random cuts): ``encode(prefix)`` is an exact prefix of
-  ``encode(full)`` if and only if the cut lands at a completed word
-  (next char is whitespace) or just after whitespace; on a mid-word cut
-  the shared pseudo-token prefix ends exactly at the last completed word
-  before the cut. Pseudo-ids are word hashes, so matching is exact only
-  up to hash collisions. Measured mean absolute error against tiktoken
+  Exact prefix semantics: when the cut lands at a completed word (next
+  char is whitespace) or just after whitespace, ``encode(prefix)`` is
+  guaranteed to be an exact prefix of ``encode(full)`` (per-word
+  additive weights; pseudo-ids are word hashes, so exact up to hash
+  collisions). On ANY cut, the shared pseudo-token prefix extends at
+  least to the last completed word before the cut. The converse does not
+  hold: a mid-word cut can still match exactly when the boundary word's
+  weight crosses no additional third-token boundaries differently
+  (example: ``"ab {"`` vs ``"ab { cdef"`` match exactly), so callers
+  must not rely on mid-word divergence as a signal. Property tests cover
+  the guaranteed directions over thousands of random cuts. Measured mean absolute error against tiktoken
   o200k_base on the deterministic synthetic corpus in
   ``tokaudit.benchmark`` (60 samples per category): prose ~18%, code
   ~16%, JSON ~19%; held-out measurements on independently sourced texts
