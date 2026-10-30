@@ -7,6 +7,25 @@ simulated estimates against dated provider rules, never observed billing.
 
 ### Added
 
+- `tokaudit.benchmark`: deterministic synthetic corpus benchmark
+  (`python -m tokaudit.benchmark`) measuring EstimatorBackend against
+  tiktoken o200k_base per content category (prose/code/JSON) with
+  mean/median/p90/max absolute error. Seeded template generation, no
+  network, fails closed on empty categories or samples. Results are
+  labeled synthetic; they describe the estimator on this corpus only.
+
+### Changed
+
+- EstimatorBackend reworked from fixed 4-character blocks to per-word
+  scoring in thirds of a pseudo-token: natural-language words (85%+
+  ASCII letters) score 4/3 (the standard ~0.75 words/token English
+  heuristic); symbol-heavy words score ~2/3 token per structural
+  character ({}[]",:) plus ~1 token per 4 remaining characters.
+  Prefix stability preserved up to boundary-word rounding; count() ==
+  len(encode()) still holds. Measured mean absolute error on the
+  synthetic benchmark corpus: prose 18.1% (was ~48% on short texts),
+  code 16.2%, JSON 19.4%.
+
 - `--what-if dense|dedup` scenarios: non-mutating hypothetical simulations
   reported next to the as-is result. `dense` is a hypothetical compressed-timing
   scenario (timestamps rescaled so nothing expires; the never-worse

@@ -1,6 +1,6 @@
 import pytest
 
-from tokaudit.tokenizers import CHUNK_CHARS, EstimatorBackend, get_backend
+from tokaudit.tokenizers import EstimatorBackend, get_backend
 
 PROSE = (
     "The quick brown fox jumps over the lazy dog while the morning sun "
@@ -21,11 +21,15 @@ JSONISH = ('{"name": "tokaudit", "version": "0.1.0", "private": true, '
            '"keywords": ["llm", "tokens", "caching"]}') * 6
 
 
-def test_estimator_chunk_math():
+def test_estimator_word_math():
     est = EstimatorBackend()
     assert est.count("") == 0
+    # one natural-language word scores 4/3 pseudo-tokens, floored to 1
     assert est.count("abcd") == 1
-    assert est.count("abcde") == 2
+    # three natural words score 3 * 4/3 = 4 pseudo-tokens
+    assert est.count("abcd abcd abcd") == 4
+    # a 10-char symbol-heavy word scores ceil(10/4) = 3 pseudo-tokens
+    assert est.count("ab12-+/*^~") == 3
     toks = est.encode("abcdefghij")
     assert len(toks) == est.count("abcdefghij")
 
@@ -52,13 +56,14 @@ def test_estimator_within_tolerance_of_tiktoken(text, label, tol):
     assert err <= tol, f"{label}: estimator {est} vs exact {exact} (err {err:.2%}, tol {tol:.0%})"
 
 
-def test_structural_blocks_count_double():
-    """JSON-ish 4-char blocks (2+ structural chars) count as 2 pseudo-tokens;
-    the decision is per block, preserving prefix stability."""
+def test_structural_characters_cost_more():
+    """Structural characters cost ~2/3 token each; the decision is per
+    word, preserving prefix stability."""
     est = EstimatorBackend()
-    # '{"a"' is one 4-char block with 3 structural chars -> 2 tokens
-    assert est.count('{"a"') == 2
-    # plain prose block stays 1
+    # '{"a"': 3 structural chars (3 * 2/3) + 1 letter (1/4-token floor)
+    # -> 2 + 1 = 3 pseudo-tokens
+    assert est.count('{"a"') == 3
+    # plain prose word stays ~1
     assert est.count("abcd") == 1
     # prefix stability with mixed content
     full = est.encode('pre {"a": 1} post')
