@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import random
 import statistics
 import sys
@@ -169,13 +170,74 @@ def to_markdown(rows: List[BenchmarkRow]) -> str:
     return "\n".join(lines)
 
 
+def _chunks(text: str, sizes: List[int]) -> List[str]:
+    out: List[str] = []
+    for size in sizes:
+        if size < 1:
+            raise ValueError("chunk sizes must be >= 1")
+        for i in range(0, max(len(text) - size, 0), size):
+            out.append(text[i : i + size])
+    return [c for c in out if c.strip()]
+
+
+def run_file_benchmark(path: str, sizes: List[int],
+                       estimator: Optional[EstimatorBackend] = None,
+                       exact: Optional[TiktokenBackend] = None) -> BenchmarkRow:
+    """Measure estimator error on a user-supplied text file, chunked.
+
+    Fails closed: missing, unreadable, or whitespace-only files raise
+    ValueError; a file that yields no chunks raises ValueError.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise ValueError(f"cannot read benchmark file {path!r}: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"benchmark file {path!r} is not valid UTF-8: {exc}") from exc
+    if not text.strip():
+        raise ValueError(f"benchmark file {path!r} is empty")
+    chunks = _chunks(text, sizes)
+    if not chunks:
+        raise ValueError(
+            f"benchmark file {path!r} is shorter than the smallest chunk size; "
+            "add --chunk-sizes with a smaller value"
+        )
+    estimator = estimator or EstimatorBackend()
+    exact = exact or TiktokenBackend()
+    errors: List[float] = []
+    exact_counts: List[int] = []
+    for chunk in chunks:
+        exact_n = exact.count(chunk)
+        if exact_n <= 0:
+            raise ValueError(f"exact backend returned no tokens for a chunk of {path!r}")
+        errors.append(abs(estimator.count(chunk) - exact_n) / exact_n * 100.0)
+        exact_counts.append(exact_n)
+    return BenchmarkRow(
+        category=os.path.basename(path),
+        samples=len(chunks),
+        exact_mean=statistics.fmean(exact_counts),
+        mean_abs_pct=statistics.fmean(errors),
+        median_abs_pct=statistics.median(errors),
+        p90_abs_pct=_pct_rank(errors, 90),
+        max_abs_pct=max(errors),
+    )
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Benchmark the estimator on a deterministic synthetic corpus.")
-    parser.add_argument("--samples", type=int, default=30, help="samples per category")
+    parser = argparse.ArgumentParser(description="Benchmark the estimator.")
+    parser.add_argument("--file", help="measure on this UTF-8 text file instead of the synthetic corpus")
+    parser.add_argument("--chunk-sizes", default="200,800,3000",
+                        help="comma-separated chunk sizes for --file (default 200,800,3000)")
+    parser.add_argument("--samples", type=int, default=30, help="samples per category (synthetic corpus)")
     parser.add_argument("--seed", type=int, default=20261029)
     parser.add_argument("--json", action="store_true", help="emit JSON instead of markdown")
     args = parser.parse_args(argv)
-    rows = run_benchmark(synthetic_corpus(samples_per_category=args.samples, seed=args.seed))
+    if args.file:
+        sizes = [int(s) for s in args.chunk_sizes.split(",")]
+        rows = [run_file_benchmark(args.file, sizes)]
+    else:
+        rows = run_benchmark(synthetic_corpus(samples_per_category=args.samples, seed=args.seed))
     if args.json:
         print(json.dumps([asdict(r) for r in rows], indent=2))
     else:
