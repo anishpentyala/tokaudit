@@ -13,6 +13,17 @@ Grounding status (re-checked dates inline):
   completion_tokens Int, cache_hit String all present). cache_hit is
   LiteLLM's application-level cache flag, not provider prompt-cache
   usage, and is deliberately not mapped to actual_usage cache fields.
+  Response shapes verified 2026-10-31 against BerriAI/litellm main
+  (litellm/proxy/spend_tracking/spend_management_endpoints.py): the
+  legacy GET /spend/logs returns full Prisma rows WITH messages; the
+  paginated GET /spend/logs/v2 wraps rows in a data/total/page envelope
+  and its list SQL (_SPEND_LOG_LIST_COLUMNS) deliberately omits
+  messages/response/proxy_server_request, keeping them for the detail
+  route /spend/logs/ui/{request_id}. Both v2 shapes are detected and
+  rejected with re-export guidance instead of a generic "no messages"
+  parse error. messages is typed str | list | dict | None on
+  SpendLogsPayload (litellm/proxy/_types.py); dict/None payloads raise
+  loudly below.
 - Langfuse observation (Observations API v2, GET /api/public/v2/observations):
   usageDetails key families pinned by Langfuse's provider-usage-key matrix
   (github.com/langfuse/langfuse .agents/skills/add-model-price/references/
@@ -88,11 +99,59 @@ def _is_helicone_row(obj: Dict[str, Any]) -> bool:
     return "request_id" in obj and "request_body" in obj
 
 
+def _is_litellm_spendlog_v2_envelope(obj: Dict[str, Any]) -> bool:
+    # GET /spend/logs/v2 wraps its page in an envelope:
+    # {"data": [...rows], "total", "page", "page_size", "total_pages"}.
+    return (
+        isinstance(obj.get("data"), list)
+        and "total" in obj
+        and "page" in obj
+    )
+
+
+def _is_litellm_spendlog_v2_list_row(obj: Dict[str, Any]) -> bool:
+    # A row from the /spend/logs/v2 LIST (and /spend/logs/ui list): the
+    # handler selects _SPEND_LOG_LIST_COLUMNS, which deliberately omits the
+    # heavy columns messages/response/proxy_server_request
+    # (litellm/proxy/spend_tracking/spend_management_endpoints.py; verified
+    # 2026-10-31). The legacy /spend/logs route returns full Prisma rows
+    # WITH messages, and the detail route /spend/logs/ui/{request_id} does
+    # too; only the list shape lacks them.
+    return (
+        "request_id" in obj
+        and "startTime" in obj
+        and "spend" in obj
+        and "total_tokens" in obj
+        and "messages" not in obj
+        and "request_body" not in obj  # not Helicone
+    )
+
+
+_V2_LIST_GUIDANCE = (
+    "LiteLLM /spend/logs/v2 list rows do not include messages/response: the "
+    "endpoint fetches only _SPEND_LOG_LIST_COLUMNS and keeps the heavy "
+    "payload columns for the detail route. Tokaudit audits token counts "
+    "from request content, so it cannot use these rows. Re-export with "
+    "message payloads: use the legacy GET /spend/logs (returns full rows "
+    "with messages) or the detail route GET /spend/logs/ui/{request_id} "
+    "per request."
+)
+
+
 def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize a known export record to parse_record's input shape.
 
     Returns the object unchanged when no adapter matches.
     """
+    if _is_litellm_spendlog_v2_envelope(obj):
+        raise ValueError(
+            "this looks like a LiteLLM /spend/logs/v2 paginated envelope "
+            "(data/total/page keys). " + _V2_LIST_GUIDANCE
+        )
+    if _is_litellm_spendlog_v2_list_row(obj):
+        raise ValueError(
+            f"litellm record {obj.get('request_id')}: " + _V2_LIST_GUIDANCE
+        )
     if _is_litellm_spendlog(obj):
         out: Dict[str, Any] = {
             "id": obj.get("request_id"),
