@@ -51,6 +51,7 @@ budgets silently stop enforcing
 ```bash
 python -m tokaudit.cli integrity your_log.jsonl
 # add --fail-on-findings to exit 1 when anything fires (CI gating)
+# try it: python -m tokaudit.cli integrity examples/integrity_spendlogs.jsonl
 ```
 
 Offline consistency checks over the raw records (LiteLLM SpendLogs,
@@ -69,7 +70,12 @@ content is read.
 
 Every finding is labelled with the documented upstream failure class
 whose signature it matches (e.g. litellm #40100/#48937/#35829/#25351,
-langfuse #14987) and a link to the issue. A finding means "consistent
+langfuse #14987) and a link to the issue. Some anchored issues are
+closed upstream (#40100 closed 2026-09, #25351 closed 2026-07,
+#35829 closed 2026-10, langfuse #14987 closed 2026-08); the checks
+remain useful because exported logs from affected versions still
+circulate - and the failure class stays live: litellm #49369 (open)
+reports the same zero-cost signature on the SDK stream wrapper. A finding means "consistent
 with that class under the stated schema assumption" - whether it applies
 depends on your upstream versions, and it is a signal, never proof of
 misbilling; legitimate $0 spends, discounts, cached calls and retry

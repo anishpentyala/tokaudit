@@ -53,3 +53,23 @@ coverage or modeling mistakes, not to reproduce billing arithmetic, and
 exact equality is not expected even with matching tokenizers because
 providers count hidden context. See the note printed under the
 section.
+
+## Accounting-integrity example
+
+`integrity_spendlogs.jsonl` is a SYNTHETIC ten-row LiteLLM SpendLogs export,
+written by hand for demonstration: no real traffic, provider account, or
+billing system produced it. Rows are shaped like real SpendLogs rows -
+accounting fields top-level, cost_breakdown and usage_object nested inside
+the metadata JSON - and exercise every integrity check, including the
+OpenRouter suppression (one suppressed row) and the gateway's own
+zero_cost_diagnostic signal. Run:
+
+```bash
+tokaudit integrity examples/integrity_spendlogs.jsonl
+```
+
+Expected: 11 findings across the ten rows (captured in
+`integrity-report.md`, regenerated 2026-10-31), each labelled with the
+documented upstream failure class it matches. One row is clean; findings
+on the rest are intentional and illustrate that signatures co-occur (a
+zero-spend record with a nested cost_breakdown fires both checks).

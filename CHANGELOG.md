@@ -17,6 +17,10 @@
   the SpendLogs metadata JSON (where real rows nest them), and the
   gateway's own zero_cost_diagnostic field is surfaced as a finding when
   a record carries it.
+- `examples/integrity_spendlogs.jsonl`: synthetic ten-row LiteLLM
+  SpendLogs demo (nested-metadata shape) exercising every integrity
+  check, with captured output in `examples/integrity-report.md` and a
+  smoke test keeping the demo honest.
   Documented legitimate patterns stay quiet: cache-inclusive usage sums
   are not flagged when the record's cache fields exactly explain the gap,
   and OpenRouter's documented usage cost field is not flagged on records

@@ -308,3 +308,14 @@ def test_i8_absent_quiet():
 def test_i8_zero_cost_diagnostic_non_dict_ignored():
     assert check_record(_litellm("r1", spend=0.01,
                         zero_cost_diagnostic="weird"), 1) == []
+
+
+def test_examples_integrity_spendlogs_demo():
+    """The shipped example must keep exercising every check family."""
+    import pathlib
+    ex = pathlib.Path(__file__).parent.parent / "examples" / "integrity_spendlogs.jsonl"
+    names = set(_names(run_integrity(str(ex))))
+    assert {"zero_spend_with_usage", "spend_cost_breakdown_disagreement",
+            "usage_sum_mismatch", "duplicate_spend_record",
+            "upstream_cost_field_in_usage", "non_numeric_accounting_field",
+            "zero_cost_diagnostic_flagged"} <= names

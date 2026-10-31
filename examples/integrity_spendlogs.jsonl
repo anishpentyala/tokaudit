@@ -1,0 +1,10 @@
+{"request_id": "demo-clean-1", "startTime": "2026-10-30T00:00:01Z", "status": "success", "spend": 0.0012, "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150, "metadata": {"cost_breakdown": {"total_cost": 0.0012}}}
+{"request_id": "demo-zero-1", "startTime": "2026-10-30T00:00:02Z", "status": "success", "spend": 0.0, "prompt_tokens": 200, "completion_tokens": 80, "total_tokens": 280}
+{"request_id": "demo-mismatch-1", "startTime": "2026-10-30T00:00:03Z", "status": "success", "spend": 0.0, "prompt_tokens": 90, "completion_tokens": 40, "total_tokens": 130, "metadata": {"cost_breakdown": {"total_cost": 0.0042}}}
+{"request_id": "demo-sum-1", "startTime": "2026-10-30T00:00:04Z", "status": "success", "spend": 0.003, "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 999}
+{"request_id": "demo-dup-1", "startTime": "2026-10-30T00:00:05Z", "status": "success", "spend": 0.002, "prompt_tokens": 60, "completion_tokens": 30, "total_tokens": 90}
+{"request_id": "demo-dup-1", "startTime": "2026-10-30T00:00:06Z", "status": "success", "spend": 0.002, "prompt_tokens": 60, "completion_tokens": 30, "total_tokens": 90}
+{"request_id": "demo-or-1", "startTime": "2026-10-30T00:00:07Z", "status": "success", "spend": 0.0, "prompt_tokens": 70, "completion_tokens": 30, "total_tokens": 100, "custom_llm_provider": "openrouter", "metadata": {"usage_object": {"cost": 0.003}}}
+{"request_id": "demo-upstream-1", "startTime": "2026-10-30T00:00:08Z", "status": "success", "spend": 0.0, "prompt_tokens": 70, "completion_tokens": 30, "total_tokens": 100, "custom_llm_provider": "anthropic", "metadata": {"usage_object": {"cost": 0.004}}}
+{"request_id": "demo-nonnumeric-1", "startTime": "2026-10-30T00:00:09Z", "status": "success", "spend": "0.01", "prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75}
+{"request_id": "demo-zcd-1", "startTime": "2026-10-30T00:00:10Z", "status": "success", "spend": 0.0, "prompt_tokens": 120, "completion_tokens": 60, "total_tokens": 180, "zero_cost_diagnostic": {"reason": "pricing_not_applied"}}
