@@ -16,7 +16,9 @@
   cost_breakdown and usage_object are read from both the top level and
   the SpendLogs metadata JSON (where real rows nest them), and the
   gateway's own zero_cost_diagnostic field is surfaced as a finding when
-  a record carries it.
+  a record carries it. LiteLLM standard-logging-payload exports are now
+  checked too (response_cost read as spend; cost_breakdown and
+  zero_cost_diagnostic are top-level there).
 - `examples/integrity_spendlogs.jsonl`: synthetic ten-row LiteLLM
   SpendLogs demo (nested-metadata shape) exercising every integrity
   check, with captured output in `examples/integrity-report.md` and a
