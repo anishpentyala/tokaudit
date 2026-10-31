@@ -46,6 +46,9 @@ class ProviderRules:
     families: Dict[str, FamilyRules] = field(default_factory=dict)
     notes: List[str] = field(default_factory=list)
 
+    # Optional separate read lifetime. Omitted preserves legacy same-TTL rules.
+    read_refresh_seconds: Optional[int] = None
+
     def resolve_min_prefix(self, model: str) -> int:
         m = model.lower()
         for key, value in self.model_minimums.items():
@@ -143,6 +146,8 @@ def _provider_from_dict(name: str, d: dict) -> ProviderRules:
         refresh_on_read=bool(d.get("refresh_on_read", False)),
         enabled_by_default=bool(d.get("enabled_by_default", False)),
         max_explicit_breakpoints=int(d.get("max_explicit_breakpoints", 4)),
+        read_refresh_seconds=(int(d["read_refresh_seconds"])
+                              if d.get("read_refresh_seconds") is not None else None),
         model_minimums={str(k).lower(): int(v) for k, v in d.get("model_minimums", {}).items()},
         families={
             fname: FamilyRules(
@@ -182,6 +187,8 @@ def load_rules(path: Optional[str] = None) -> Ruleset:
             rules = _provider_from_dict(name, pdata)
         except (TypeError, ValueError) as exc:
             raise SystemExit(f"rules file {use_path}: provider '{name}': {exc}")
+        if rules.read_refresh_seconds is not None and rules.read_refresh_seconds < 0:
+            raise SystemExit(f"rules file {use_path}: provider '{name}': read_refresh_seconds must be non-negative")
         for label, ttl, wm, rm in (
             [("provider", rules.ttl_seconds, rules.write_multiplier, rules.read_multiplier)]
             + [(f"family '{f.name}'", f.ttl_seconds, f.write_multiplier, f.read_multiplier)

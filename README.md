@@ -279,3 +279,9 @@ python -m pytest tests/
 ```
 
 Roadmap and contribution ideas: `ROADMAP.md`.
+
+OpenAI read refresh is separate from write retention: a read extends coverage
+only to the later of its existing expiry and 30 minutes after the read. The
+`openai-12h` what-if does not restart 12 hours on each hit. Custom provider rules
+can set `read_refresh_seconds`; omitting it keeps same-TTL refresh behavior.
+Regenerate earlier 12-hour what-if estimates, which could overstate savings.

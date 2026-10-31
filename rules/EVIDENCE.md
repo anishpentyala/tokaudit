@@ -122,3 +122,13 @@ ingestion persists per provider)
   1-hour keys as equal-price aliases."
 - The matrix instructs: "Never infer cache writes from ordinary input or
   from the presence of a cache read."
+
+## OpenAI read refresh versus write lifetime (rechecked 2026-10-31)
+
+Source: https://platform.openai.com/docs/guides/prompt-caching
+
+> "A 30-minute read refreshes coverage to at least 30 minutes after that read. If it uses an entry with valid 12-hour coverage, it preserves the later of the existing expiry and 30 minutes after the read. It does not restart a 12-hour clock or incur another write charge."
+
+The simulator now models the read duration separately from the write lifetime:
+`max(existing_expiry, read_time + 1800)`. The `openai-12h` what-if changes
+write lifetime and price, not the 30-minute read-refresh duration.

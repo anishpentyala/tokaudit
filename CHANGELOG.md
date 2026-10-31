@@ -4,6 +4,12 @@
 
 ### Fixed
 
+- OpenAI 12-hour what-if reads now extend coverage only to the later of
+  existing expiry and read + 30 minutes, rather than restarting 12 hours.
+  Added optional `read_refresh_seconds` for custom rules; omitted values
+  retain same-TTL refresh behavior. Earlier 12-hour savings estimates can
+  be overstated and should be regenerated.
+
 - OpenAI cache simulation now refreshes 30-minute coverage on each cache
   read, per the current prompt-caching guide: a 30-minute read refreshes
   coverage to at least 30 minutes after that read (12-hour coverage keeps

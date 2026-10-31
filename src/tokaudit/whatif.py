@@ -266,6 +266,7 @@ def _openai_12h(
     twelve_h = replace(
         rules,
         ttl_seconds=43200,
+        read_refresh_seconds=1800,
         write_multiplier=2.5,
         families={
             name: replace(fam, ttl_seconds=43200, write_multiplier=2.5)

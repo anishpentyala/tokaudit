@@ -228,3 +228,34 @@ def test_openai_12h_caveats_flag_retention_assumption():
     (sc,) = run_scenarios(["openai-12h"], reqs, ENC, OPENAI)
     joined = " ".join(sc["caveats"])
     assert "at least" in joined and "Non-mutating" in joined
+
+
+def test_openai_12h_read_preserves_write_expiry_without_restarting_clock():
+    from dataclasses import replace
+    # 11h read preserves the original 12h coverage, not a new 12h clock.
+    rules = replace(OPENAI, refresh_on_read=True)
+    reqs = [make_req(str(i), "same", ts=t * 3600) for i, t in enumerate([0, 11, 13])]
+    (scenario,) = run_scenarios(["openai-12h"], reqs, ENC, rules)
+    # Write, one discounted read, then another write after expiry.
+    token_count = simulate(reqs[:1], ENC, rules).per_request[0].total_input
+    assert scenario["result"]["simulated_units"] == round(token_count * (2.5 + 0.1 + 2.5), 1)
+
+
+
+def test_openai_12h_read_near_expiry_extends_only_thirty_minutes():
+    from dataclasses import replace
+    rules = replace(OPENAI, refresh_on_read=True, ttl_seconds=43200,
+                    read_refresh_seconds=1800)
+    reqs = [make_req(str(i), "same", ts=t * 60) for i, t in enumerate([0, 710, 730, 761])]
+    costs = simulate(reqs, ENC, rules).per_request
+    assert costs[1].read > 0  # keep coverage through 740 minutes
+    assert costs[2].read > 0  # extend coverage to 760, not another 12h
+    assert costs[3].read == 0
+
+
+def test_openai_read_cannot_shorten_long_write_coverage():
+    from dataclasses import replace
+    rules = replace(OPENAI, refresh_on_read=True, ttl_seconds=43200,
+                    read_refresh_seconds=1800)
+    reqs = [make_req(str(i), "same", ts=t * 3600) for i, t in enumerate([0, 1, 11])]
+    assert all(c.read > 0 for c in simulate(reqs, ENC, rules).per_request[1:])

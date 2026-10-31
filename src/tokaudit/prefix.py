@@ -15,7 +15,8 @@ Model (documented approximation, not a provider oracle):
   Intermediate boundary entries become readable without extra charge
   (approximation of provider breakpoint selection).
 - Entries expire ``ttl_seconds`` after writing; providers with
-  ``refresh_on_read`` renew the TTL on every read.
+  ``refresh_on_read`` extend coverage on reads by ``read_refresh_seconds``
+  (or the write TTL when unspecified), never shortening existing coverage.
 - Cost is in units of the base input-token rate (uncached 1.0x). No
   dollar prices are baked in, so results survive price changes.
 
@@ -166,7 +167,8 @@ def simulate(
                 read_tokens = b
                 hash_read[h] = True
                 if rules.refresh_on_read:
-                    cache[h] = ts + ttl
+                    refresh = ttl if rules.read_refresh_seconds is None else rules.read_refresh_seconds
+                    cache[h] = max(expiry, ts + refresh)
                 break
 
         # Choose write breakpoints.

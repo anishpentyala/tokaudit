@@ -79,3 +79,17 @@ def test_openai_refresh_on_read_per_current_doc():
     rules must refresh on read. See rules/EVIDENCE.md for the verbatim excerpt."""
     rules = load_rules().for_provider("openai")
     assert rules.refresh_on_read is True
+
+
+def test_shipped_openai_read_refresh_is_thirty_minutes():
+    assert load_rules().for_provider("openai").read_refresh_seconds == 1800
+    assert load_rules().for_provider("anthropic").read_refresh_seconds is None
+
+
+def test_negative_read_refresh_is_rejected(tmp_path):
+    import json
+    import pytest
+    path = tmp_path / "rules.json"
+    path.write_text(json.dumps({"providers": {"x": {"read_refresh_seconds": -1}}}))
+    with pytest.raises(SystemExit, match="read_refresh_seconds must be non-negative"):
+        load_rules(str(path))
