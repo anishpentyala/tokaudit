@@ -22,9 +22,13 @@ quiet; otherwise the finding text names both the failure class and the
 legitimate alternatives the record cannot rule out. Records we cannot read fail closed (the loader exits), matching
 the analyzer's robustness contract.
 
-Format coverage mirrors the adapters: LiteLLM SpendLogs (full check set),
-Helicone flat rows and Langfuse ObservationV2 exports (usage-sum check
-where the fields exist). Request text is never read.
+Format coverage mirrors the adapters: LiteLLM SpendLogs rows (full
+check set; accounting fields are top-level columns while cost_breakdown
+and usage_object nest inside the row's metadata JSON - both levels are
+read), LiteLLM standard-logging-payload records (zero_cost_diagnostic
+check; that field exists only on that shape), Helicone flat rows and
+Langfuse ObservationV2 exports (usage-sum check where the fields exist).
+Request text is never read.
 
 Issue anchors (all fetched 2026-10-30):
   #48937 streamed chat completions logged at $0 when upstream reports
@@ -167,7 +171,12 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
             LITELLM + "48937"))
 
     # I2: spend disagrees with the record's own cost_breakdown (#40100).
+    # Real SpendLogs rows nest cost_breakdown inside the metadata JSON;
+    # standard-logging-payload records carry it top-level. Read both.
+    metadata = obj.get("metadata")
     breakdown = obj.get("cost_breakdown")
+    if breakdown is None and isinstance(metadata, dict):
+        breakdown = metadata.get("cost_breakdown")
     if isinstance(breakdown, dict):
         cb_total = _num(breakdown.get("total_cost"))
         if spend is not None and cb_total is not None:
@@ -188,7 +197,10 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
     # Legitimate contract on some providers: OpenRouter returns a usage cost
     # field as part of its usage-accounting API, so a record that names
     # OpenRouter as its provider is suppressed rather than flagged.
+    # Real SpendLogs rows nest the usage dict at metadata.usage_object.
     usage_obj = obj.get("usage")
+    if usage_obj is None and isinstance(metadata, dict):
+        usage_obj = metadata.get("usage_object")
     if isinstance(usage_obj, dict) and "cost" in usage_obj:
         provider = str(obj.get("custom_llm_provider")
                        or obj.get("llm_provider") or "").lower()
@@ -201,6 +213,24 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
                 "it verbatim as USD without unit validation - check which "
                 "applies to this record",
                 LITELLM + "35829"))
+
+    # I8: litellm's OWN zero-cost diagnostic is present on the record.
+    # This is provider-recorded evidence, not a heuristic: the gateway
+    # itself computed $0 and flagged why (#48937: spend and budgets read
+    # 0 for all streaming traffic while the diagnostic says
+    # "pricing_not_applied"). The field exists on standard-logging
+    # payloads; SpendLogs rows do not carry it.
+    zcd = obj.get("zero_cost_diagnostic")
+    if zcd is None and isinstance(metadata, dict):
+        zcd = metadata.get("zero_cost_diagnostic")
+    if isinstance(zcd, dict) and isinstance(zcd.get("reason"), str):
+        findings.append(Finding(
+            "zero_cost_diagnostic_flagged", line, rid,
+            "the gateway's own zero-cost diagnostic fired on this record "
+            f"(reason={zcd['reason']!r}): LiteLLM itself determined the "
+            "call was priced at $0 anomalously - the strongest form of "
+            "evidence this failure class produces",
+            LITELLM + "48937"))
 
     # I7: accounting fields present but non-numeric/non-finite (strings,
     # NaN, Infinity) - ingestion-corruption class; the analyzer already

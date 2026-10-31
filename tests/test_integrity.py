@@ -261,3 +261,50 @@ def test_zero_spend_finding_names_free_and_cached_explanations():
     (finding,) = [x for x in f if x.invariant == "zero_spend_with_usage"]
     assert "zero-priced models" in finding.detail
     assert "fully cached" in finding.detail or "cached calls" in finding.detail
+
+
+
+def test_i2_cost_breakdown_nested_in_metadata():
+    """Real SpendLogs rows nest cost_breakdown inside metadata JSON."""
+    f = check_record(_litellm("r1", spend=0.0,
+                     metadata={"cost_breakdown": {"total_cost": 0.0123}}), 1)
+    assert "spend_cost_breakdown_disagreement" in _names(f)
+    assert "0.0123" in f[0].detail
+
+
+def test_i2_nested_breakdown_agrees_quiet():
+    f = check_record(_litellm("r1", spend=0.0123,
+                     metadata={"cost_breakdown": {"total_cost": 0.0123}}), 1)
+    assert f == []
+
+
+def test_i6_usage_object_nested_in_metadata():
+    """SpendLogs rows nest the usage dict at metadata.usage_object."""
+    f = check_record(_litellm("r1", spend=0.0, custom_llm_provider="anthropic",
+                     metadata={"usage_object": {"cost": 0.004}}), 1)
+    assert "upstream_cost_field_in_usage" in _names(f)
+
+
+def test_i6_openrouter_nested_suppressed():
+    f = check_record(_litellm("r1", spend=0.0, custom_llm_provider="openrouter",
+                     metadata={"usage_object": {"cost": 0.004}}), 1)
+    assert f == []
+
+
+def test_i8_zero_cost_diagnostic_flagged():
+    """The gateway's own zero-cost diagnosis is provider-recorded evidence."""
+    f = check_record(_litellm("r1", spend=0.0,
+                     zero_cost_diagnostic={"reason": "pricing_not_applied"}), 1)
+    assert "zero_cost_diagnostic_flagged" in _names(f)
+    f8 = [x for x in f if x.invariant == "zero_cost_diagnostic_flagged"][0]
+    assert "pricing_not_applied" in f8.detail
+    assert f8.anchor.endswith("48937")
+
+
+def test_i8_absent_quiet():
+    assert check_record(_litellm("r1", spend=0.01), 1) == []
+
+
+def test_i8_zero_cost_diagnostic_non_dict_ignored():
+    assert check_record(_litellm("r1", spend=0.01,
+                        zero_cost_diagnostic="weird"), 1) == []
