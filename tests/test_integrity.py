@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from tokaudit.integrity import check_record, run_integrity
+from tokaudit.integrity import check_duplicate_spend, check_record, run_integrity
 
 
 def _litellm(rid, **kw):
@@ -319,3 +319,45 @@ def test_examples_integrity_spendlogs_demo():
             "usage_sum_mismatch", "duplicate_spend_record",
             "upstream_cost_field_in_usage", "non_numeric_accounting_field",
             "zero_cost_diagnostic_flagged"} <= names
+
+
+def _slp(**kw):
+    """Minimal LiteLLM standard-logging-payload-shaped record."""
+    d = {"id": "log-1", "startTime": "2026-10-30T00:00:00Z",
+         "response_cost": 0.01, "prompt_tokens": 100, "completion_tokens": 50,
+         "total_tokens": 150, "status": "success"}
+    d.update(kw)
+    return d
+
+
+def test_slp_zero_response_cost_fires_i1():
+    """Standard-logging payloads use response_cost, not spend (#48937 class)."""
+    f = check_record(_slp(response_cost=0.0), 1)
+    assert "zero_spend_with_usage" in _names(f)
+
+
+def test_slp_priced_record_clean():
+    assert check_record(_slp(), 1) == []
+
+
+def test_slp_top_level_cost_breakdown_disagreement():
+    f = check_record(_slp(response_cost=0.0,
+                     cost_breakdown={"total_cost": 0.0042}), 1)
+    assert "spend_cost_breakdown_disagreement" in _names(f)
+
+
+def test_slp_failure_status_quiet():
+    assert check_record(_slp(response_cost=0.0, status="failure"), 1) == []
+
+
+def test_slp_zero_cost_diagnostic_flagged():
+    f = check_record(_slp(response_cost=0.0,
+                     zero_cost_diagnostic={"reason": "missing_pricing_key"}), 1)
+    assert "zero_cost_diagnostic_flagged" in _names(f)
+
+
+def test_slp_no_duplicate_check_without_request_id():
+    """The duplicate-billing check keys on request_id; payloads use id."""
+    records = [(1, _slp(id="log-1")), (2, _slp(id="log-1"))]
+    assert "duplicate_spend_record" not in _names(
+        check_duplicate_spend(records))
