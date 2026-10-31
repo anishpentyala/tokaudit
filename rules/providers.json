@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-28",
+  "as_of": "2026-10-31",
   "sources": {
     "openai": "https://platform.openai.com/docs/guides/prompt-caching",
     "anthropic": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
@@ -11,7 +11,7 @@
       "ttl_seconds": 1800,
       "write_multiplier": 1.25,
       "read_multiplier": 0.1,
-      "refresh_on_read": false,
+      "refresh_on_read": true,
       "enabled_by_default": true,
       "max_explicit_breakpoints": 4,
       "model_minimums": {},
@@ -24,7 +24,8 @@
         "Models before GPT-5.6 have no cache-write charge (read discount only) and use prompt_cache_retention instead of ttl.",
         "Cached-token reporting rounds down to a multiple of 128 tokens.",
         "The rendered prefix is the cache key: settings such as reasoning.effort, text.verbosity and context_management compaction can change it.",
-        "Caching is on by default (implicit); explicit breakpoints available via prompt_cache_options (up to 4 writes per request)."
+        "Caching is on by default (implicit); explicit breakpoints available via prompt_cache_options (up to 4 writes per request).",
+        "A 30-minute read refreshes coverage to at least 30 minutes after that read; with valid 12-hour coverage it preserves the later of the existing expiry and 30 minutes after the read, without restarting the 12-hour clock or incurring another write charge (prompt-caching guide, 2026-10-31). Only the 30-minute lifetime is simulated, so refresh equals expiry = read + 30m."
       ],
       "families": {
         "gpt61_sol_terra": {
