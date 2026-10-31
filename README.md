@@ -56,12 +56,16 @@ python -m tokaudit.cli integrity your_log.jsonl
 Offline consistency checks over the raw records (LiteLLM SpendLogs,
 Helicone rows, Langfuse exports), each with a stated schema assumption:
 zero spend on token-bearing non-error calls, spend vs cost_breakdown
-disagreement, usage sums that don't add up (assuming the OpenAI/LiteLLM
-usage shape; records whose own fields document a cache-inclusive sum are
-not flagged), duplicate-billed request IDs, provider-reported cost
-fields inside usage chunks (suppressed on providers where that field is
-a documented contract, e.g. OpenRouter), and non-numeric/non-finite
-accounting fields. Offline; no request content is read.
+disagreement (SpendLogs rows nest cost_breakdown inside the metadata
+JSON - both levels are read), usage sums that don't add up (assuming the
+OpenAI/LiteLLM usage shape; records whose own fields document a
+cache-inclusive sum are not flagged), duplicate-billed request IDs,
+provider-reported cost fields inside usage chunks (suppressed on
+providers where that field is a documented contract, e.g. OpenRouter),
+non-numeric/non-finite accounting fields, and the gateway's OWN
+zero-cost diagnostic when a record carries it (standard-logging-payload
+shape; LiteLLM itself computed $0 and recorded why). Offline; no request
+content is read.
 
 Every finding is labelled with the documented upstream failure class
 whose signature it matches (e.g. litellm #40100/#48937/#35829/#25351,
