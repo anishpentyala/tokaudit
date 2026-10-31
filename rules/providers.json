@@ -91,7 +91,8 @@
             "Pre-GPT-5.6 models: docs confirm no cache-write charge, but per-model cached-input read rates are unverified as of 2026-10-28 (the model comparison page lists current models only). Savings are NOT estimated for this family until the user supplies verified rates via --rules."
           ]
         }
-      }
+      },
+      "read_refresh_seconds": 1800
     },
     "anthropic": {
       "min_prefix_tokens": 4096,
@@ -120,4 +121,4 @@
       ]
     }
   }
-}
+            }
