@@ -1,6 +1,8 @@
 # Evidence for provider caching rules
 
-Verbatim excerpts from official documentation, fetched 2026-10-28.
+Verbatim excerpts from official documentation, fetched 2026-10-28
+(OpenAI lifetime/refresh excerpts re-fetched 2026-10-31; all other
+claims re-verified unchanged that day).
 Re-fetch both pages before relying on these after that date; providers
 change terms without notice.
 
@@ -24,6 +26,21 @@ Source: https://platform.openai.com/docs/guides/prompt-caching
 - "Cache reuse requires the entire rendered prefix to match."
 - "Implicit mode: OpenAI chooses breakpoint locations out of the box."
 - Explicit mode: "Each request can create up to four cache writes."
+
+OpenAI cache lifetime and refresh (fetched 2026-10-31, same URL):
+- "For GPT-5.6 and later, cache writes cost 1.25x the standard, uncached
+  input-token rate for the default 30-minute lifetime. In the Responses
+  API, you can choose a 12-hour minimum lifetime at a write rate of 2.5x
+  ordinary input. Subsequent reads cost 0.1x the ordinary input rate on
+  most of these models and 0.05x on GPT-6.1 Sol and GPT-6.1 Terra,
+  regardless of the selected lifetime." (unchanged from 2026-10-28)
+- "A 30-minute read refreshes coverage to at least 30 minutes after that
+  read. If it uses an entry with valid 12-hour coverage, it preserves the
+  later of the existing expiry and 30 minutes after the read. It does not
+  restart a 12-hour clock or incur another write charge."
+  -> rules/providers.json openai.refresh_on_read = true as of 2026-10-31.
+  Only the 30-minute lifetime is simulated, so refresh is exactly
+  expiry = max(existing expiry, read + 30m).
 
 ## Anthropic
 Source: https://docs.claude.com/en/docs/build-with-claude/prompt-caching

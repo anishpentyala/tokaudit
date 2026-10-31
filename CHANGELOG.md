@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Fixed
+
+- OpenAI cache simulation now refreshes 30-minute coverage on each cache
+  read, per the current prompt-caching guide: a 30-minute read refreshes
+  coverage to at least 30 minutes after that read (12-hour coverage keeps
+  the later of its own expiry and read + 30m, without restarting the
+  12-hour clock). Previously entries hard-expired 30 minutes after the
+  write, underestimating hit rates and savings for frequently re-read
+  prefixes. Evidence and verbatim excerpt in rules/EVIDENCE.md; rules
+  as_of bumped to 2026-10-31.
+
 ### Added
 
 - `tokaudit integrity`: offline accounting-integrity checks over the

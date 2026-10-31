@@ -2,6 +2,23 @@
 
 Factual record of work sessions. Newest first.
 
+## 2026-10-31 (Instinct assistant) - OpenAI refresh-on-read correction
+- Rules-freshness re-fetch of the OpenAI prompt-caching guide found a
+  correction: the doc states a 30-minute read refreshes coverage to at
+  least 30 minutes after that read (12-hour coverage preserves the later
+  of existing expiry and read + 30m, no 12-hour restart, no extra write
+  charge). rules/providers.json had refresh_on_read=false, so the
+  simulator hard-expired entries 30 minutes after write and
+  underestimated savings (conservative direction, but wrong).
+- All other OpenAI and Anthropic claims re-verified unchanged 2026-10-31
+  (1024 minimum, 1.25x/2.5x writes, 0.1x and 0.05x read rates, 5m/1h
+  Anthropic lifetimes).
+- Fix: openai.refresh_on_read -> true in both rules copies + verbatim
+  evidence excerpt + two regression tests (shipped-rules flag test and an
+  end-to-end write/read/read-past-first-TTL case). Negative control: both
+  new tests fail with the flag flipped back to false. Full suite 215
+  passed (was 213).
+
 ## 2026-10-30 (session 3, ~16:15 PDT, Instinct assistant) - integrity hardening
 - Main reviewed the merged integrity feature (PR #8) and required
   validation against legitimate counterexamples before the checks stand:

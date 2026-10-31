@@ -3,7 +3,7 @@ from tokaudit.rules import load_rules
 
 def test_rules_load_and_date():
     rs = load_rules()
-    assert rs.as_of == "2026-10-28"
+    assert rs.as_of == "2026-10-31"
     assert "openai" in rs.sources and "anthropic" in rs.sources
 
 
@@ -71,3 +71,11 @@ def test_unknown_model_variants_fail_closed():
     for model in unknowns:
         res = rules.resolve_family(model)
         assert res.family.savings_supported is False, model
+
+
+def test_openai_refresh_on_read_per_current_doc():
+    """OpenAI's prompt-caching guide (fetched 2026-10-31): a 30-minute read
+    refreshes coverage to at least 30 minutes after that read, so the shipped
+    rules must refresh on read. See rules/EVIDENCE.md for the verbatim excerpt."""
+    rules = load_rules().for_provider("openai")
+    assert rules.refresh_on_read is True
