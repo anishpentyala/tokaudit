@@ -154,3 +154,23 @@ def test_force_family_paths():
     with pytest.raises(SystemExit):
         # Generic GPT-5.6+ family: base policy documented, per-model read rate not.
         simulate(reqs, ENC, rules, force_family="gpt56_plus_generic")
+
+
+def test_openai_shipped_rules_refresh_extends_past_first_ttl():
+    """End-to-end with the SHIPPED OpenAI rules: write at t=0, read at
+    t=1500s (25m, hit refreshes to t=3300s), read at t=2400s (40m) must still
+    hit. With hard expiry the entry dies at t=1800s and the third request
+    misses. Verifies the 2026-10-31 doc correction end to end."""
+    from tokaudit.rules import load_rules
+
+    long_system = "word " * 900  # ~1200 estimator tokens, above the 1024 minimum
+    rules = load_rules().for_provider("openai")
+
+    def shipped_req(rid, ts):
+        return Request(rid=rid, model="gpt-6-luna", provider="openai",
+                       messages=[Message("system", long_system), Message("user", "q")], ts=ts)
+
+    reqs = [shipped_req("w", 0.0), shipped_req("r1", 1500.0), shipped_req("r2", 2400.0)]
+    sim = simulate(reqs, ENC, rules)
+    assert sim.per_request[1].read > 0
+    assert sim.per_request[2].read > 0
