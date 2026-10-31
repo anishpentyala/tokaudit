@@ -1,43 +1,124 @@
 # Evidence for provider caching rules
 
-Verbatim excerpts from official documentation, fetched 2026-10-31. Re-fetch both pages before relying on these after that date; providers change terms without notice. Add a new dated entry whenever a rule is updated.
+Verbatim excerpts from official documentation, fetched 2026-10-28
+(OpenAI lifetime/refresh excerpts re-fetched 2026-10-31; all other
+claims re-verified unchanged that day).
+Re-fetch both pages before relying on these after that date; providers
+change terms without notice.
 
-## OpenAI — https://platform.openai.com/docs/guides/prompt-caching (fetched 2026-10-31)
+## OpenAI
+Source: https://platform.openai.com/docs/guides/prompt-caching
 
-> "OpenAI reserves the right to cache prompts for longer periods, up to 24 hours."
+- "The minimum cacheable prompt length is 1,024 tokens for GPT-5.6 and
+  later and varies by request settings for earlier models."
+- "For GPT-5.6 and later, cache writes cost 1.25x the standard, uncached
+  input-token rate for the default 30-minute lifetime. In the Responses
+  API, you can choose a 12-hour minimum lifetime at a write rate of 2.5x
+  ordinary input. Subsequent reads cost 0.1x the ordinary input rate on
+  most of these models and 0.05x on GPT-6.1 Sol and GPT-6.1 Terra,
+  regardless of the selected lifetime."
+- "Cache-write pricing is not an additive fee: input tokens use the
+  uncached-input, cached-input, or cache-write rate."
+- "These are total write rates, not surcharges on top of ordinary input."
+- "OpenAI may retain entries longer than the requested minimum."
+- Model comparison table: for earlier models, "No additional cache-write
+  charge"; cached-token reporting "rounds down to a multiple of 128".
+- "Cache reuse requires the entire rendered prefix to match."
+- "Implicit mode: OpenAI chooses breakpoint locations out of the box."
+- Explicit mode: "Each request can create up to four cache writes."
 
-> "Cached entries are retained for up to 12 hours of inactivity."
+OpenAI cache lifetime and refresh (fetched 2026-10-31, same URL):
+- "For GPT-5.6 and later, cache writes cost 1.25x the standard, uncached
+  input-token rate for the default 30-minute lifetime. In the Responses
+  API, you can choose a 12-hour minimum lifetime at a write rate of 2.5x
+  ordinary input. Subsequent reads cost 0.1x the ordinary input rate on
+  most of these models and 0.05x on GPT-6.1 Sol and GPT-6.1 Terra,
+  regardless of the selected lifetime." (unchanged from 2026-10-28)
+- "A 30-minute read refreshes coverage to at least 30 minutes after that
+  read. If it uses an entry with valid 12-hour coverage, it preserves the
+  later of the existing expiry and 30 minutes after the read. It does not
+  restart a 12-hour clock or incur another write charge."
+  -> rules/providers.json openai.refresh_on_read = true as of 2026-10-31.
+  Only the 30-minute lifetime is simulated, so refresh is exactly
+  expiry = max(existing expiry, read + 30m).
 
-> "The cache lives at zero additional cost and cached tokens are discounted by 90% for all supported models."
+## Anthropic
+Source: https://docs.claude.com/en/docs/build-with-claude/prompt-caching
 
-> "A 30-minute read refreshes coverage to at least 30 minutes after that read. If it uses an entry with valid 12-hour coverage, it preserves the later of the existing expiry and 30 minutes after the read. It does not restart a 12-hour clock or incur another write charge."
+- "By default, the cache has a 5-minute lifetime. The cache is refreshed
+  for no additional cost each time the cached content is used."
+- "5-minute cache write tokens are 1.25 times the base input tokens
+  price"; "1-hour cache write tokens are 2 times"; "Cache read tokens
+  are 0.1 times the base input tokens price".
+- "The minimum cacheable prompt length is: 512 tokens for Claude Fable
+  5.1, Claude Mythos 5.1, Claude Opus 5, Claude Fable 5, and Claude
+  Mythos 5; 2,048 tokens for Claude Mythos Preview and Claude Opus 4.7;
+  4,096 tokens for Claude Opus 4.6 and Claude Opus 4.5."
+- "total_input_tokens = cache_read_input_tokens + cache_creation_input_tokens
+  + input_tokens" with "input_tokens: Number of input tokens which were
+  not read from or used to create a cache (that is, tokens after the
+  last cache breakpoint)."
+- "For concurrent requests, note that a cache entry only becomes
+  available after the first response begins."
 
-Also from the pricing section of the same page (models table, fetched 2026-10-31): cache read prices are 10% of input price for the GPT-5.1/5/4.1/o-series generation (e.g. GPT-5.1 $0.125/M vs $1.25/M input; GPT-4.1-mini $0.025/M vs $0.40/M). Prompts shorter than 1024 tokens are never cached (page's requirements section).
+## Cache scope and routing (OpenAI, fetched 2026-10-28, same URL)
 
-Implication for our rules (as of 2026-10-31):
+Verbatim excerpts grounding the simulation's cache-namespace model:
 
-- write_multiplier = 1.25 (a write costs input_price + 25%; cache-hit reads cost 10% of input). The 1.25 applies to GPT-5.1/5/4.1/o-generation models; legacy 4o prices vary slightly, still within ±0.05.
-- discount = 0.9 (reads at 10%).
-- ttl_short_hours = 12 (inactivity TTL from the doc), refresh_on_read = true per the quoted read-refresh sentence; reads during valid 12-hour coverage extend expiry to max(existing expiry, read+30min) without restarting a 12-hour clock.
-- max_hours = 24 is the documented upper bound ("up to 24 hours").
-- min_tokens = 1024.
+> "Caches are not shared across organizations and cannot be reused across regional processing boundaries."
 
-## Anthropic — https://docs.claude.com/en/docs/build-with-claude/prompt-caching (fetched 2026-10-31)
+> "OpenAI handles routing automatically. Within an organization and processing region, routing for a given model depends on: ... A supplied `prompt_cache_key`, which separates cache reuse between groups of requests and helps optimize cache routing on models before GPT-5.6."
 
-> "Prompt caching references the entire prompt - tools, system, and messages (in that order) up to and including the block designated with cache_control."
+> "On GPT-5.6 and later, OpenAI handles cache routing automatically; the key is not needed to optimize caching. You can use separate keys to maintain separate cache accounting for customers or users within your application."
 
-> "The cache has a 5-minute lifetime, refreshed each time the cached content is used."
+Implication for simulation: entries are shared within one organization + region
+per model; `prompt_cache_key` partitions reuse. App session IDs are NOT a
+documented cache boundary. `--isolate-sessions` is an explicit conservative
+scenario, labeled as such in output.
 
-> "Cache write tokens are 25% more expensive than base input tokens"
+## Per-model list prices (OpenAI model comparison, fetched 2026-10-28 via browser render; page is JS-only)
 
-> "Cache read tokens are priced at 0.1 of base input token price" (i.e., 90% discount)
+URL: https://platform.openai.com/docs/models/compare
 
-Also stated on the same page (fetched 2026-10-31): a 1-hour cache TTL option exists (beta), cache reads don't count against ITPM rate limits for Claude Sonnet 4.5 and later models, and minimum cacheable lengths are 1024 tokens for Claude Opus/Sonnet models (2048 for Haiku 4.5, 1024 for Haiku 3.5/3).
+Per-model pricing cards, verbatim values:
 
-Implication for our rules (as of 2026-10-31): write_multiplier = 1.25, discount = 0.9, ttl_short_hours = 5/60 (5 minutes), refresh_on_read = true, min_tokens = 1024 (Haiku 4.5 = 2048 noted in provider notes; we use 1024 as the common minimum and flag the Haiku exception in the notes field).
+- GPT-6 Astra ("Our most capable model for the most demanding work"):
+  Input $10.00, Cached input $1.00, Cache writes $12.50, Output $50.00 per 1M tokens.
+  -> read 0.1x, write 1.25x.
+- GPT-6.1 Sol ("Near-Astra performance for complex work at a lower cost"):
+  Input $2.00, Cached input $0.10, Cache writes $2.50, Output $10.00 per 1M tokens.
+  -> read 0.05x, write 1.25x.
+- GPT-6 Luna ("Our most efficient model for focused, high-volume tasks"):
+  Input $0.10, Cached input $0.01, Cache writes $0.125, Output $0.50 per 1M tokens.
+  -> read 0.1x, write 1.25x.
 
-## Disagreements / things to re-check
+These confirm the documented multipliers per model. The page lists current
+models only; pre-GPT-5.6 cached-input rates remain unverified, so the legacy
+family stays fail-closed.
 
-- OpenAI's "up to 24 hours" is a maximum, not a guarantee — the doc's own wording is "OpenAI reserves the right to cache prompts for longer periods, up to 24 hours." We use max_hours only as an upper-bound display, never as an assumed TTL.
-- Anthropic's 1-hour TTL option is a beta header; our rules model the default 5-minute TTL only.
-- If either page's numbers change, update rules/providers.json AND this file in the same commit, bumping the fetch dates.
+## Minimum cacheable lengths (verified 2026-10-28)
+
+OpenAI prompt-caching doc (https://platform.openai.com/docs/guides/prompt-caching), verbatim:
+
+> "A prompt prefix must meet the model's minimum cacheable token length before it can be cached. Tokens in the OpenAI-provided hidden system content do not count toward this minimum. The minimum cacheable prompt length is 1,024 tokens for GPT-5.6 and later and varies by request settings for earlier models. See the model comparison for details."
+
+Model comparison page (https://platform.openai.com/docs/models/compare, rendered 2026-10-28): lists input / cached input / cache write rates per model but no minimum cacheable length column. Conclusion: for the GPT-5.6+ models tokaudit supports, the minimum is uniformly 1,024 tokens; no per-model map exists to encode. Earlier models ("varies by request settings") remain fail-closed in tokaudit because their read rates are unverifiable from current public pages.
+
+Note for interpretation: hidden OpenAI system tokens count toward breakpoints but not toward the minimum; tokaudit's canonical render contains only log-visible messages, so simulated eligibility is relative to visible tokens (covered by the report's render_note).
+
+## Langfuse usageDetails key families
+Source: https://github.com/langfuse/langfuse/blob/main/.agents/skills/add-model-price/references/provider-usage-key-matrix.md
+(fetched 2026-10-28; Langfuse's own reference for the usage keys its
+ingestion persists per provider)
+
+- OpenAI: Cache read keys "input_cached_tokens, input_cache_read,
+  cache_read_input_tokens"; explicit cache write "input_cache_creation,
+  cache_write_tokens, input_cache_write_tokens".
+- Anthropic / Bedrock Claude: Cache write "cache_creation_input_tokens,
+  input_cache_creation"; five-minute write "input_cache_creation_5m";
+  one-hour write "input_cache_creation_1h"; cache read
+  "cache_read_input_tokens, input_cache_read, input_cached_tokens".
+- "The TTL-specific prices can differ, so do not treat the 5-minute and
+  1-hour keys as equal-price aliases."
+- The matrix instructs: "Never infer cache writes from ordinary input or
+  from the presence of a cache read."
