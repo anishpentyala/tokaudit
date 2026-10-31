@@ -98,3 +98,41 @@ def test_markdown_shows_dollars(tmp_path):
     assert rc == 0
     text = out.read_text()
     assert "From your price sheet" in text and "$" in text
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf"),
+                                 "NaN", "Infinity", "-Infinity", "1e309"])
+@pytest.mark.parametrize("key", ["input", "cached_input", "cache_write"])
+def test_nonfinite_rates_fail_closed(tmp_path, value, key):
+    rates = {"input": 1., "cached_input": .1, "cache_write": 1.25}
+    rates[key] = value
+    with pytest.raises(SystemExit, match="finite"):
+        load_price_sheet(_sheet(tmp_path, {"m": rates}))
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_boolean_rates_fail_closed(tmp_path, value):
+    with pytest.raises(SystemExit, match="must be a number"):
+        load_price_sheet(_sheet(tmp_path, {"m": {"input": value, "cached_input": .1, "cache_write": 1.25}}))
+
+
+def test_overflowing_integer_rate_fails_cleanly(tmp_path):
+    with pytest.raises(SystemExit, match="must be a number"):
+        load_price_sheet(_sheet(tmp_path, {"m": {"input": 10**400, "cached_input": .1, "cache_write": 1.25}}))
+
+
+def test_zero_and_finite_numeric_string_rates_remain_valid(tmp_path):
+    rates = load_price_sheet(_sheet(tmp_path, {"m": {"input": "1.5", "cached_input": 0, "cache_write": "2.0"}}))
+    assert cost_usd(1_000_000, 2, 0, rates["m"]) == pytest.approx(1.5)
+
+
+def test_cli_rejects_invalid_prices_before_writing_dollar_report(tmp_path, capsys):
+    from pathlib import Path
+    ex = str(Path(__file__).resolve().parents[1] / "examples" / "quickstart.jsonl")
+    prices = _sheet(tmp_path, {"gpt-6-astra": {"input": "NaN", "cached_input": .1, "cache_write": 1.25}})
+    output = tmp_path / "report.json"
+    with pytest.raises(SystemExit, match="finite"):
+        main(["analyze", ex, "--tokenizer", "estimate", "--prices", prices,
+              "--format", "json", "--output", str(output)])
+    assert not output.exists()
+    assert "baseline_usd" not in capsys.readouterr().out
