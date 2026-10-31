@@ -160,6 +160,10 @@ tokaudit analyze requests.jsonl --what-if openai-12h        # 12-hour TTL cost-b
                                                 # (OpenAI logs; use --provider openai on mixed logs)
 ```
 
+Price rates must be finite, nonnegative numbers. NaN, infinity, overflowed
+numbers and booleans are rejected before a dollar report is written. Finite
+numeric strings and zero rates remain supported.
+
 `--prices SHEET.json` adds dollar figures from your own price sheet -
 `{"models": {"gpt-6-astra": {"input": 10.0, "cached_input": 1.0,
 "cache_write": 12.5}}}` (per 1M tokens). No prices ship with tokaudit;

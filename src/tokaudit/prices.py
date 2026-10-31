@@ -9,6 +9,7 @@ from dollar figures (their units are unaffected).
 from __future__ import annotations
 
 import json
+import math
 from typing import Dict, Optional
 
 RATE_KEYS = ("input", "cached_input", "cache_write")
@@ -51,10 +52,16 @@ def load_price_sheet(path: str) -> Dict[str, Dict[str, float]]:
         entry = {}
         for k in RATE_KEYS:
             try:
+                if isinstance(rates[k], bool):
+                    raise ValueError("boolean rate")
                 v = float(rates[k])
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 raise SystemExit(
                     f"price sheet {path}: '{model}.{k}' must be a number"
+                )
+            if not math.isfinite(v):
+                raise SystemExit(
+                    f"price sheet {path}: '{model}.{k}' must be finite"
                 )
             if v < 0:
                 raise SystemExit(
