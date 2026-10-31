@@ -189,3 +189,59 @@ def test_helicone_usage_extracted():
     assert req.actual_usage == {"prompt_tokens": 1200,
                                 "cache_read_tokens": 900,
                                 "cache_write_tokens": 300}
+
+
+def _v2_list_row():
+    # Shape selected by _SPEND_LOG_LIST_COLUMNS in litellm
+    # spend_management_endpoints.py (verified 2026-10-31): no messages.
+    return {
+        "request_id": "req_v2", "call_type": "acompletion",
+        "spend": 0.0012, "total_tokens": 42, "prompt_tokens": 30,
+        "completion_tokens": 12, "startTime": "2026-10-31 05:00:00",
+        "endTime": "2026-10-31 05:00:01", "model": "gpt-5.6",
+        "custom_llm_provider": "openai", "status": "success",
+        "session_id": None, "request_duration_ms": 900,
+    }
+
+
+def test_litellm_v2_list_row_loud_specific_error():
+    with pytest.raises(ValueError, match="do not include messages"):
+        adapt(_v2_list_row())
+
+
+def test_litellm_v2_list_row_names_detail_route():
+    with pytest.raises(ValueError, match=r"/spend/logs/ui/\{request_id\}"):
+        adapt(_v2_list_row())
+
+
+def test_litellm_v2_envelope_loud_specific_error():
+    envelope = {
+        "data": [_v2_list_row()],
+        "total": 1, "page": 1, "page_size": 50, "total_pages": 1,
+    }
+    with pytest.raises(ValueError, match="paginated envelope"):
+        adapt(envelope)
+
+
+def test_litellm_v1_full_row_still_adapts():
+    # Legacy /spend/logs returns full Prisma rows WITH messages: unchanged.
+    req = parse_record(adapt({
+        "request_id": "req_v1", "startTime": "2026-10-31T05:00:00Z",
+        "model": "gpt-5.6", "spend": 0.001, "total_tokens": 10,
+        "messages": [{"role": "user", "content": "hi"}],
+    }))
+    assert req.rid == "req_v1"
+    assert req.messages[0].text == "hi"
+
+
+def test_helicone_row_not_caught_by_v2_check():
+    # Helicone rows carry request_id + request_body but no startTime/spend;
+    # the v2 fingerprint must not steal them.
+    req = parse_record(adapt({
+        "request_id": "heli-1",
+        "request_body": {"messages": [{"role": "user", "content": "hey"}]},
+        "response_body": {"choices": []},
+        "request_created_at": "2026-10-31T05:00:00Z",
+        "request_model": "gpt-5.6",
+    }))
+    assert req.rid == "heli-1"
