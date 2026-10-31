@@ -22,13 +22,14 @@ quiet; otherwise the finding text names both the failure class and the
 legitimate alternatives the record cannot rule out. Records we cannot read fail closed (the loader exits), matching
 the analyzer's robustness contract.
 
-Format coverage mirrors the adapters: LiteLLM SpendLogs rows (full
-check set; accounting fields are top-level columns while cost_breakdown
-and usage_object nest inside the row's metadata JSON - both levels are
-read), LiteLLM standard-logging-payload records (zero_cost_diagnostic
-check; that field exists only on that shape), Helicone flat rows and
-Langfuse ObservationV2 exports (usage-sum check where the fields exist).
-Request text is never read.
+Format coverage mirrors the adapters: LiteLLM SpendLogs rows
+(accounting fields are top-level columns while cost_breakdown and
+usage_object nest inside the row's metadata JSON - both levels are
+read), LiteLLM standard-logging-payload records (response_cost is read
+as spend, cost_breakdown and zero_cost_diagnostic are top-level; the
+duplicate-billing check stays SpendLogs-only because it keys on
+request_id), Helicone flat rows and Langfuse ObservationV2 exports
+(usage-sum check where the fields exist). Request text is never read.
 
 Issue anchors (all fetched 2026-10-30):
   #48937 streamed chat completions logged at $0 when upstream reports
@@ -74,7 +75,23 @@ def _num(v: Any) -> Optional[float]:
 
 
 def _is_litellm_spendlog(obj: Dict[str, Any]) -> bool:
-    return "request_id" in obj and "startTime" in obj
+    # Two LiteLLM export shapes share the same accounting semantics:
+    # SpendLogs rows (request_id + spend) and standard-logging-payload
+    # records (id + response_cost; callbacks/webhooks). Both carry token
+    # counts, status and custom_llm_provider top-level (verified against
+    # StandardLoggingPayload in litellm/types/utils.py).
+    if "request_id" in obj and "startTime" in obj:
+        return True
+    return "response_cost" in obj and "id" in obj and "startTime" in obj
+
+
+def _spend(obj: Dict[str, Any]) -> Optional[float]:
+    # SpendLogs rows call it spend; standard-logging payloads call it
+    # response_cost. Both mean "what this call was priced at".
+    spend = _num(obj.get("spend"))
+    if spend is None:
+        spend = _num(obj.get("response_cost"))
+    return spend
 
 
 def _is_helicone_row(obj: Dict[str, Any]) -> bool:
@@ -149,7 +166,7 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
     if not _is_litellm_spendlog(obj):
         return findings
 
-    spend = _num(obj.get("spend"))
+    spend = _spend(obj)
 
     # I1: zero spend on an apparently successful, token-bearing call.
     # Budgets enforce against spend, so $0 records bypass them (#48937).
