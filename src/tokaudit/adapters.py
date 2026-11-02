@@ -275,7 +275,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             ("prompt_cache_write_tokens", "cache_write_tokens"),
         ):
             v = obj.get(src_key)
-            # Skip malformed values (bools, non-finite floats) the same
+            # Skip malformed values (bools, negative/fractional/non-finite counts) the same
             # way the LiteLLM/Langfuse adapters skip theirs: reported
             # usage only feeds the simulated-vs-reported comparison, so
             # "no reported value" is the conservative outcome.
@@ -283,6 +283,8 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
                 isinstance(v, (int, float))
                 and not isinstance(v, bool)
                 and math.isfinite(v)
+                and v >= 0
+                and int(v) == v
             ):
                 usage[dst_key] = int(v)
         if usage:
