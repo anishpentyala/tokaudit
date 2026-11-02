@@ -239,7 +239,12 @@ markers in the log are honored.
 ## Configuration
 
 `tokaudit analyze` reads defaults from `./.tokaudit.toml` when present
-(or from `--config PATH`). Known keys: `rules`, `policy`, `tokenizer`,
+(or from `--config PATH`). TOML values are validated before analysis:
+`isolate_sessions` must be a real boolean, `dup_min_tokens` a real integer
+(no string/bool/fraction coercion), and provider/tokenizer/format/scenario
+names must match the CLI choices. Custom policy names and file paths remain
+supported. Invalid values stop with config-file guidance before report writes.
+Known keys: `rules`, `policy`, `tokenizer`,
 `provider`, `format`, `dup_min_tokens`, `isolate_sessions`, `what_if`,
 `output`, `prices`. Unknown keys, invalid TOML and unreadable files fail
 closed with a clear error. Explicit CLI flags always win over the file.
