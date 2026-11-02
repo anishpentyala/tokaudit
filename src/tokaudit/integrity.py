@@ -71,7 +71,10 @@ def _num(v: Any) -> Optional[float]:
         return None
     if isinstance(v, float) and not math.isfinite(v):
         return None
-    return float(v)
+    try:
+        return float(v)
+    except OverflowError:
+        return None
 
 
 def _is_litellm_spendlog(obj: Dict[str, Any]) -> bool:
@@ -163,6 +166,26 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
                     "this as an error.",
                     LANGFUSE + "14987"))
 
+    # Present invalid values are findings on every supported accounting shape,
+    # not missing-data zeros. In particular standard logging uses response_cost.
+    fields = []
+    if _is_litellm_spendlog(obj):
+        fields = [(k, obj.get(k)) for k in (
+            "spend", "response_cost", "prompt_tokens", "completion_tokens", "total_tokens")]
+    elif _is_helicone_row(obj):
+        fields = [(k, obj.get(k)) for k in ("prompt_tokens", "completion_tokens")]
+    else:
+        details = obj.get("usageDetails") or obj.get("usage_details")
+        if isinstance(details, dict):
+            fields = [("usageDetails." + k, details.get(k))
+                      for k in ("input", "output", "total")]
+    for field_name, raw in fields:
+        if raw is not None and _num(raw) is None:
+            findings.append(Finding(
+                "non_numeric_accounting_field", line, rid,
+                f"{field_name}={raw!r} is not a finite number",
+                LANGFUSE + "14987" if _is_langfuse_observation(obj) else LITELLM + "25351"))
+
     if not _is_litellm_spendlog(obj):
         return findings
 
@@ -249,16 +272,6 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
             "evidence this failure class produces",
             LITELLM + "48937"))
 
-    # I7: accounting fields present but non-numeric/non-finite (strings,
-    # NaN, Infinity) - ingestion-corruption class; the analyzer already
-    # skips such usage conservatively, here it is surfaced as a finding.
-    for field_name in ("spend", "prompt_tokens", "completion_tokens", "total_tokens"):
-        raw = obj.get(field_name)
-        if raw is not None and _num(raw) is None:
-            findings.append(Finding(
-                "non_numeric_accounting_field", line, rid,
-                f"{field_name}={raw!r} is not a finite number",
-                LITELLM + "25351"))
     return findings
 
 
@@ -289,6 +302,32 @@ def check_duplicate_spend(records: List[Tuple[int, Dict[str, Any]]]) -> List[Fin
     return findings
 
 
+def _has_accounting_fields(obj: Dict[str, Any]) -> bool:
+    """Require a recognized row and at least one checkable accounting field.
+
+    Presence, not validity: malformed present values must reach the numeric
+    findings rather than be mistaken for an unsupported record.
+    """
+    if _is_litellm_spendlog(obj):
+        if any(obj.get(k) is not None for k in (
+            "spend", "response_cost", "prompt_tokens", "completion_tokens", "total_tokens")):
+            return True
+        metadata = obj.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        for container in (obj.get("usage"), metadata.get("usage_object")):
+            if isinstance(container, dict) and "cost" in container:
+                return True
+        return any(isinstance(container, dict) and isinstance(container.get("reason"), str)
+                   for container in (obj.get("zero_cost_diagnostic"),
+                                     metadata.get("zero_cost_diagnostic")))
+    if _is_helicone_row(obj):
+        return any(obj.get(k) is not None for k in (
+            "prompt_tokens", "completion_tokens"))
+    details = obj.get("usageDetails") or obj.get("usage_details")
+    return isinstance(details, dict) and any(
+        details.get(k) is not None for k in ("input", "output", "total"))
+
+
 def run_integrity(path: str) -> List[Finding]:
     """Check one JSONL log; unreadable structure fails closed (SystemExit),
     matching the analyzer's robustness contract."""
@@ -311,7 +350,16 @@ def run_integrity(path: str) -> List[Finding]:
                 raise SystemExit(f"{path}:{idx + 1}: JSON nested too deeply to parse")
             if not isinstance(obj, dict):
                 raise SystemExit(f"{path}:{idx + 1}: expected a JSON object per line")
+            if not _has_accounting_fields(obj):
+                raise SystemExit(
+                    f"{path}:{idx + 1}: no supported accounting fields; "
+                    "expected a LiteLLM SpendLogs/standard-logging, Helicone, "
+                    "or Langfuse accounting row, not a request-only record "
+                    "or paginated envelope"
+                )
             records.append((idx + 1, obj))
             findings.extend(check_record(obj, idx + 1))
+    if not records:
+        raise SystemExit(f"{path}: no accounting records to check")
     findings.extend(check_duplicate_spend(records))
     return findings
