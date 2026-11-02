@@ -300,3 +300,14 @@ only to the later of its existing expiry and 30 minutes after the read. The
 `openai-12h` what-if does not restart 12 hours on each hit. Custom provider rules
 can set `read_refresh_seconds`; omitting it keeps same-TTL refresh behavior.
 Regenerate earlier 12-hour what-if estimates, which could overstate savings.
+
+### Reported token-count validation
+
+Normalized `actual_usage` fields must be nonnegative integer counts. Boolean,
+negative, fractional and non-finite values fail with the record and line
+context instead of being truncated or converted into token counts. Integral
+floats and base-10 integer strings remain accepted for normalized exports.
+Helicone's optional numeric usage fields keep their existing missing-data
+policy: invalid fields are omitted, not changed to zero, and therefore do not
+contribute to that field's comparison coverage. No provider pricing or
+simulation rules are changed.
