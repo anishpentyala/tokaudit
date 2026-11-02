@@ -42,6 +42,7 @@ class RequestCost:
     uncached: int
     baseline_units: float
     simulated_units: float
+    model: str = ""
 
 
 @dataclass
@@ -201,6 +202,7 @@ def simulate(
         per_request.append(
             RequestCost(
                 rid=req.rid,
+                model=req.model,
                 total_input=total,
                 read=read_tokens,
                 written=written_delta,
@@ -261,4 +263,4 @@ def simulate(
         wasted_write_tokens=wasted,
         notes=notes,
         skipped=skipped,
-    )
+          )

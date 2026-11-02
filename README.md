@@ -180,8 +180,12 @@ numeric strings and zero rates remain supported.
 "cache_write": 12.5}}}` (per 1M tokens). No prices ship with tokaudit;
 sheets fail closed on unknown keys, missing or negative rates, and
 requests whose model is absent from the sheet are excluded from dollar
-totals. Dollar figures apply your sheet to simulated token flows: still
-simulated, not observed billing.
+totals. Each simulated request retains its own model for pricing, even
+when request IDs repeat across models or timestamps reorder the log. Legacy
+programmatic simulation rows without a model use ID lookup only when the
+request ID is unique; ambiguous rows are unpriced rather than guessed.
+Dollar figures apply your sheet to simulated token flows: still simulated,
+not observed billing.
 
 `--what-if` scenarios are hypothetical and non-mutating: they re-run the
 simulation on a transformed copy of the log and report their own numbers
