@@ -137,11 +137,11 @@ def _dedup(
         "Non-mutating: the as-is simulation above is unchanged; this scenario "
         "shows what the cost would have been without the exact repeats.",
     ]
-    seen: Dict[Tuple[str, str, Optional[str], Optional[str], Tuple[int, ...]], str] = {}
+    seen: Dict[Tuple[str, Tuple[Tuple[str, str], ...], Optional[str], Optional[str], Tuple[int, ...]], str] = {}
     kept: List[Request] = []
     dropped: List[str] = []
     for r in requests:
-        key = (r.model, r.canonical(), r.cache_key, r.session_id,
+        key = (r.model, tuple((m.role, m.text) for m in r.messages), r.cache_key, r.session_id,
                tuple(r.breakpoints))
         if key in seen:
             dropped.append(r.rid)
