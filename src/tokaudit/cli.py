@@ -9,7 +9,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 
 from .dedup import find_duplicates
-from .integrity import run_integrity
+from .integrity import Finding, build_integrity_report
 from .logs import load_log
 from .prefix import simulate
 from .prices import load_price_sheet
@@ -112,7 +112,8 @@ def _cmd_rules(args: argparse.Namespace) -> int:
 
 
 def _cmd_integrity(args: argparse.Namespace) -> int:
-    findings = run_integrity(args.log)
+    report = build_integrity_report(args.log)
+    findings = [Finding(**finding) for finding in report["findings"]]
     by_name: Dict[str, list] = {}
     for f in findings:
         by_name.setdefault(f.invariant, []).append(f)
@@ -133,7 +134,8 @@ def _cmd_integrity(args: argparse.Namespace) -> int:
                      "(total = prompt + completion; detail fields are "
                      "subsets); records whose schema documents a different "
                      "sum are suppressed when the fields show it.")
-    text = "\n".join(lines)
+    text = (json.dumps(report, indent=2) if args.format == "json"
+            else "\n".join(lines))
     if args.output:
         with open(args.output, "w", encoding="utf-8") as fh:
             fh.write(text + "\n")
@@ -188,6 +190,8 @@ def main(argv: Optional[List[str]] = None) -> int:
              "each finding is anchored to a documented upstream failure class)")
     p_int.add_argument("log", help="path to a JSONL request log")
     p_int.add_argument("--output", default=None, help="write the report to a file")
+    p_int.add_argument("--format", choices=["text", "json"], default="text",
+                       help="report format (JSON includes every finding and record counts)")
     p_int.add_argument("--fail-on-findings", action="store_true",
                        help="exit 1 when any finding fires (for CI gating)")
     p_int.set_defaults(func=_cmd_integrity)
