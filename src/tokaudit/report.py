@@ -149,6 +149,7 @@ def _provider_reported(requests: List[Request], sim: SimulationResult) -> Option
         "requests_compared": len(matched),
         "ambiguous_request_ids": ambiguous,
         "coverage": {},
+        "per_request": [],
         "note": ("Provider-reported fields come from the export; missing fields are unknown, "
                  "not zero. Each field compares only requests with that explicit field and "
                  "one uniquely matching simulated request. Requests skipped by simulation "
@@ -156,6 +157,21 @@ def _provider_reported(requests: List[Request], sim: SimulationResult) -> Option
                  "context differ from the canonical render, so exact equality is not expected. "
                  "Divergence alone is not evidence of a billing discrepancy."),
     }
+    # Aggregates can hide equal-and-opposite errors. Keep field-specific
+    # request evidence; absence is not zero and never contributes a delta.
+    fields = (("cache_read_tokens", "read"), ("cache_write_tokens", "written"),
+              ("prompt_tokens", "total_input"))
+    for request, cost in matched:
+        comparisons = {}
+        for field, attribute in fields:
+            if field in request.actual_usage:
+                actual = request.actual_usage[field]
+                simulated = getattr(cost, attribute)
+                comparisons[field] = {"reported": actual, "simulated": simulated,
+                                      "simulated_minus_reported": simulated - actual}
+        if comparisons:
+            result["per_request"].append({"id": request.rid, "model": request.model,
+                                           "fields": comparisons})
     for field, actual_key, simulated_key, attribute in (
         ("cache_read_tokens", "actual_cache_read_tokens", "simulated_cache_read_tokens", "read"),
         ("cache_write_tokens", "actual_cache_write_tokens", "simulated_cache_write_tokens", "written"),
@@ -286,6 +302,28 @@ def to_markdown(report: Dict) -> str:
         if pr['ambiguous_request_ids']:
             lines.append(f"- Ambiguous request IDs excluded: {len(pr['ambiguous_request_ids'])}")
         lines.append(f"- {pr['note']}")
+        details = pr.get("per_request", [])
+        if details:
+            # Escape untrusted identifiers as one literal Markdown table cell.
+            import html
+            def cell(value):
+                return "<code>" + (html.escape(str(value), quote=False)
+                    .replace("`", "&#96;").replace("|", "&#124;")
+                    .replace("\r", r"\r").replace("\n", r"\n")) + "</code>"
+            lines += ["", "### Per-request usage comparison", "",
+                      "Signed delta = simulated minus provider-reported tokens. "
+                      "Missing fields stay unknown. These are diagnostic differences, not billing findings.", "",
+                      "| Request | Model | Field | Reported | Simulated | Delta |",
+                      "| --- | --- | --- | ---: | ---: | ---: |"]
+            if len(details) > 20:
+                lines.append(f"First 20 of {len(details)} comparable requests shown; "
+                             "JSON retains all per-request comparisons.")
+                lines.append("")
+            for item in details[:20]:
+                for field, values in item["fields"].items():
+                    lines.append(f"| {cell(item['id'])} | {cell(item['model'])} | {field} | "
+                                 f"{values['reported']:,} | {values['simulated']:,} | "
+                                 f"{values['simulated_minus_reported']:+,} |")
     lines += ["", "## Recommendations", ""]
     for r in report["recommendations"]:
         lines.append(f"- {r}")
