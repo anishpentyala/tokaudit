@@ -127,6 +127,17 @@ none focused on workload-level prompt-cache simulation from request
 logs. That scan was not exhaustive; if a maintained tool does this well,
 use it and tell us.
 
+## Provider-usage comparison coverage
+
+Provider-reported token fields are compared only with the same uniquely
+identified requests in the simulation. Each field has its own coverage count:
+a record with prompt tokens but no cache-read field does not establish zero
+cache reads. Missing comparable fields are JSON `null` and Markdown "unknown";
+explicit zero remains zero. Requests excluded by an unverified model policy,
+and duplicate request IDs that cannot be paired uniquely, are excluded from
+this comparison. Simulation totals elsewhere still describe the full selected
+workload. These are coverage-scoped diagnostics, not billing verification.
+
 ## Privacy
 
 Request logs can contain sensitive prompts, personal data and leaked
