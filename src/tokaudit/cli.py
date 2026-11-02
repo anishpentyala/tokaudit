@@ -32,6 +32,7 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     what_if = args.what_if if args.what_if is not None else cfg.get("what_if")
     output = args.output if args.output is not None else cfg.get("output")
     prices_path = args.prices if args.prices is not None else cfg.get("prices")
+    omit_previews = args.omit_content_previews or cfg.get("omit_content_previews", False)
     price_sheet = load_price_sheet(prices_path) if prices_path else None
 
     requests = load_log(args.log)
@@ -59,7 +60,7 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         reports.append(
             build_report(group, sim, dups, ruleset, rules, backend.name,
                          scenarios=scenarios, price_sheet=price_sheet,
-                         price_source=prices_path)
+                         price_source=prices_path, omit_content_previews=omit_previews)
         )
 
     if len(reports) == 1:
@@ -169,6 +170,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_an.add_argument("--dup-min-tokens", type=int, default=None,
                       help="minimum size of repeated blocks to report")
     p_an.add_argument("--output", default=None, help="write the report to a file")
+    p_an.add_argument("--omit-content-previews", action="store_true",
+                      help="omit raw duplicate content previews; not full report anonymization")
     p_an.add_argument("--prices", default=None,
                       help="path to a user-supplied price sheet JSON "
                            "({\"models\": {model: {\"input\", \"cached_input\", "

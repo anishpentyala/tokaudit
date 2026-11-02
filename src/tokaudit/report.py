@@ -20,6 +20,7 @@ def build_report(
     scenarios: Optional[List[Dict]] = None,
     price_sheet: Optional[Dict[str, Dict[str, float]]] = None,
     price_source: Optional[str] = None,
+    omit_content_previews: bool = False,
 ) -> Dict:
     total_input = sum(c.total_input for c in sim.per_request)
     below_min = [
@@ -85,7 +86,7 @@ def build_report(
                 "occurrences": len(d.occurrences),
                 "repeated_tokens": d.repeated_tokens,
                 "requests": sorted({rid for rid, _ in d.occurrences}),
-                "preview": d.preview,
+                **({} if omit_content_previews else {"preview": d.preview}),
             }
             for d in dups
         ],
@@ -98,6 +99,7 @@ def build_report(
         "provider_reported": _provider_reported(requests, sim),
         "recommendations": recommendations,
         "assumptions": {
+            **({"content_previews_omitted": True} if omit_content_previews else {}),
             "rules_as_of": ruleset.as_of,
             "sources": ruleset.sources,
             "provider_notes": rules.notes,
@@ -240,11 +242,14 @@ def to_markdown(report: Dict) -> str:
     if s["wasted_write_tokens"]:
         lines.append(f"- Cache writes never re-read: {s['wasted_write_tokens']:,} tokens")
     lines += ["", "## Duplicate content across requests", ""]
+    if report["assumptions"].get("content_previews_omitted"):
+        lines.append("Content previews omitted. IDs, metadata and aggregate statistics remain; this is not anonymization.")
     if report["duplicate_blocks"]:
         for d in report["duplicate_blocks"]:
             lines.append(
                 f"- ~{d['tokens']} tokens x {d['occurrences']} requests "
-                f"({d['repeated_tokens']} repeated tokens): \"{d['preview']}\""
+                f"({d['repeated_tokens']} repeated tokens)"
+                + (f": \"{d['preview']}\"" if 'preview' in d else ": content preview omitted")
             )
     else:
         lines.append("No repeated blocks above the detection threshold.")
