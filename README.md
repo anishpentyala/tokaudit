@@ -389,3 +389,15 @@ write. The existing boundary approximation remains: if any stored boundary
 from one charged write is later read during its lifetime, the whole charged
 delta is treated as used. This is not token-by-token attribution or a provider
 billing verdict.
+
+### Per-request reported usage diagnostics
+
+When reported usage is available, JSON retains field-specific reported,
+simulated and signed `simulated_minus_reported` token counts for each uniquely
+matched request. Aggregate agreement can hide opposite differences across
+requests, so inspect these rows before trusting an aggregate comparison.
+Missing fields remain unknown, not zero; duplicate/ambiguous IDs and requests
+excluded by simulation stay excluded. Markdown shows the first 20 comparable
+requests, with an explicit truncation note; JSON keeps every comparable row.
+Counts use different tokenizers/templates and are not evidence of misbilling.
+Rows expose request IDs and model names, even with content previews omitted.
