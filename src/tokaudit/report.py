@@ -312,13 +312,13 @@ def to_markdown(report: Dict) -> str:
                     .replace("\r", r"\r").replace("\n", r"\n")) + "</code>"
             lines += ["", "### Per-request usage comparison", "",
                       "Signed delta = simulated minus provider-reported tokens. "
-                      "Missing fields stay unknown. These are diagnostic differences, not billing findings.", "",
-                      "| Request | Model | Field | Reported | Simulated | Delta |",
-                      "| --- | --- | --- | ---: | ---: | ---: |"]
+                      "Missing fields stay unknown. These are diagnostic differences, not billing findings.", ""]
             if len(details) > 20:
                 lines.append(f"First 20 of {len(details)} comparable requests shown; "
                              "JSON retains all per-request comparisons.")
                 lines.append("")
+            lines += ["| Request | Model | Field | Reported | Simulated | Delta |",
+                      "| --- | --- | --- | ---: | ---: | ---: |"]
             for item in details[:20]:
                 for field, values in item["fields"].items():
                     lines.append(f"| {cell(item['id'])} | {cell(item['model'])} | {field} | "
