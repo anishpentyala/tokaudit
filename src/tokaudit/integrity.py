@@ -48,7 +48,8 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 LITELLM = "https://github.com/BerriAI/litellm/issues/"
@@ -328,11 +329,16 @@ def _has_accounting_fields(obj: Dict[str, Any]) -> bool:
         details.get(k) is not None for k in ("input", "output", "total"))
 
 
-def run_integrity(path: str) -> List[Finding]:
-    """Check one JSONL log; unreadable structure fails closed (SystemExit),
-    matching the analyzer's robustness contract."""
+def build_integrity_report(path: str) -> Dict[str, Any]:
+    """Read once and report supported record coverage plus all findings.
+
+    Counts describe checked input, not billing completeness or correctness.
+    No request content is copied into the report. IDs and diagnostic values
+    may still be sensitive.
+    """
     records: List[Tuple[int, Dict[str, Any]]] = []
     findings: List[Finding] = []
+    formats: Counter = Counter()
     try:
         fh = open(path, "r", encoding="utf-8")
     except OSError as exc:
@@ -357,9 +363,41 @@ def run_integrity(path: str) -> List[Finding]:
                     "or Langfuse accounting row, not a request-only record "
                     "or paginated envelope"
                 )
+            if _is_litellm_spendlog(obj):
+                shape = ("litellm_spendlogs" if "request_id" in obj
+                         else "litellm_standard_logging")
+            elif _is_helicone_row(obj):
+                shape = "helicone"
+            else:
+                shape = "langfuse"
+            formats[shape] += 1
             records.append((idx + 1, obj))
             findings.extend(check_record(obj, idx + 1))
     if not records:
         raise SystemExit(f"{path}: no accounting records to check")
     findings.extend(check_duplicate_spend(records))
-    return findings
+    return {
+        "schema_version": 1,
+        "summary": {
+            "checked_records": len(records),
+            "format_counts": dict(sorted(formats.items())),
+            "finding_count": len(findings),
+            "invariant_counts": dict(sorted(Counter(
+                finding.invariant for finding in findings).items())),
+        },
+        "findings": [asdict(finding) for finding in findings],
+        "limitations": [
+            "Only available supported accounting fields were checked; "
+            "missing optional fields are not zero.",
+            "Findings are signals to inspect under their stated schema "
+            "assumptions, not proof of misbilling.",
+            "Request content is not included, but IDs and diagnostic "
+            "values may be sensitive.",
+        ],
+    }
+
+
+def run_integrity(path: str) -> List[Finding]:
+    """Compatibility API returning all findings; input errors fail closed."""
+    return [Finding(**finding) for finding in
+            build_integrity_report(path)["findings"]]
