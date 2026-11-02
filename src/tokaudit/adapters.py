@@ -206,8 +206,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             try:
                 inp = json.loads(inp)
             except (json.JSONDecodeError, TypeError):
-                out["prompt"] = inp
-                return {k: v for k, v in out.items() if v is not None}
+                pass  # Plain text still needs the common usage normalization.
         if isinstance(inp, list):
             out["messages"] = inp
         elif isinstance(inp, dict) and isinstance(inp.get("messages"), list):
