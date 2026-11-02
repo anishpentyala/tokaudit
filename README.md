@@ -338,3 +338,16 @@ Helicone's optional numeric usage fields keep their existing missing-data
 policy: invalid fields are omitted, not changed to zero, and therefore do not
 contribute to that field's comparison coverage. No provider pricing or
 simulation rules are changed.
+
+### Exact prefix-cache identity
+
+Cache simulation compares complete token sequences, not a hash alone. Keys
+retain signed64-bit token IDs as compact bytes; arbitrary-size custom token
+IDs use exact tuples without truncation. This adds memory proportional to the
+unique cached prefix content, including expired entries retained for write
+attribution. On a single synthetic500-request workload with2000distinct tokens
+per request, tracemalloc peak was8.07MiB versus0.46MiB for the old hash-only
+index (full Python tuples used34.67MiB). Runtime was0.150s versus0.121s on that
+run. This is a bounded resource check, not a general performance guarantee.
+The regression uses custom positive token IDs with deterministic equal tuple
+hashes; it does not establish a collision rate for built-in tokenizers.
