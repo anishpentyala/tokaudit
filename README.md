@@ -157,6 +157,14 @@ content previews), redact secrets from logs before sharing any output,
 and prefer analyzing aggregated or synthetic logs when demonstrating
 the tool.
 
+Use `--omit-content-previews` (or TOML `omit_content_previews = true`) to
+remove raw duplicate-content previews from JSON and Markdown reports. Counts,
+request IDs, model names, file paths, metadata and simulation results remain.
+This is not anonymization or a guarantee that a report contains no sensitive
+information: identifiers and user-supplied metadata can be sensitive too.
+In opt-in JSON, duplicate blocks omit the `preview` key and assumptions record
+`content_previews_omitted: true`. Default reports keep their existing shape.
+
 ## Install
 
 ```bash
@@ -246,7 +254,7 @@ names must match the CLI choices. Custom policy names and file paths remain
 supported. Invalid values stop with config-file guidance before report writes.
 Known keys: `rules`, `policy`, `tokenizer`,
 `provider`, `format`, `dup_min_tokens`, `isolate_sessions`, `what_if`,
-`output`, `prices`. Unknown keys, invalid TOML and unreadable files fail
+`output`, `prices`, `omit_content_previews`. Unknown keys, invalid TOML and unreadable files fail
 closed with a clear error. Explicit CLI flags always win over the file.
 TOML parsing uses the standard library on Python 3.11+ and the bundled
 `tomli` dependency on older versions.
