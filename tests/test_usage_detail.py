@@ -79,6 +79,10 @@ def test_markdown_bounded_json_complete(tmp_path,capsys):
     assert main(['analyze',str(path),'--tokenizer','estimate'])==0
     text=capsys.readouterr().out
     assert 'First 20 of 25 comparable requests shown' in text
+    assert text.index('First 20 of 25') < text.index('| Request |')
+    table = text[text.index('| Request |'):text.index('## Recommendations')].strip().splitlines()
+    assert len(table)==22
+    assert all(line.startswith('|') and line.endswith('|') for line in table)
     assert '<code>r019</code>' in text and '<code>r020</code>' not in text
     assert main(['analyze',str(path),'--tokenizer','estimate','--format','json'])==0
     assert len(json.loads(capsys.readouterr().out)['provider_reported']['per_request'])==25
