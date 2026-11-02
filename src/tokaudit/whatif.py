@@ -121,14 +121,14 @@ def _dedup(
 
     A duplicate is exact only when everything the log represents matches:
     model, full canonically rendered prompt, prompt_cache_key, and
-    session_id. Sampling parameters are not part of the log format, so two
+    session_id, and explicit cache-breakpoint layout. Sampling parameters are not part of the log format, so two
     identical requests may still have been intentional independent samples;
     that judgment stays with the user.
     """
     caveats = [
         "Collapsing duplicates is only safe when the duplicates are "
         "interchangeable. Distinctions the log represents (model, prompt, "
-        "prompt_cache_key, session_id) are preserved, but the log does not "
+        "prompt_cache_key, session_id, explicit cache-breakpoint layout) are preserved, but the log does not "
         "record organization, region, or sampling parameters (e.g. "
         "temperature), so identical requests may have been deliberate "
         "independent samples or billed to different accounts. Treat the "
@@ -137,11 +137,12 @@ def _dedup(
         "Non-mutating: the as-is simulation above is unchanged; this scenario "
         "shows what the cost would have been without the exact repeats.",
     ]
-    seen: Dict[Tuple[str, str], str] = {}
+    seen: Dict[Tuple[str, str, Optional[str], Optional[str], Tuple[int, ...]], str] = {}
     kept: List[Request] = []
     dropped: List[str] = []
     for r in requests:
-        key = (r.model, r.canonical(), r.cache_key, r.session_id)
+        key = (r.model, r.canonical(), r.cache_key, r.session_id,
+               tuple(r.breakpoints))
         if key in seen:
             dropped.append(r.rid)
         else:

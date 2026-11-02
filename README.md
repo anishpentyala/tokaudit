@@ -212,7 +212,8 @@ expires. Within the simulator's model this never reduces hits (a proven
 model property), but it is a hypothetical timing scenario, not a
 real-world bound - real hits also depend on best-effort provider prefix
 routing and concurrency. `dedup` collapses exact duplicate requests
-(same model, rendered prompt, prompt_cache_key and session_id - only
+(same model, rendered prompt, prompt_cache_key, session_id and explicit
+cache-breakpoint layout - only
 safe if the duplicates were redundant, which sampling parameters and
 organization, not present in the log, can decide).
 `anthropic-1h` (Anthropic logs only) re-simulates with the documented
