@@ -84,8 +84,11 @@ def test_langfuse_usage_details_extracted(tmp_path, capsys):
     assert rc == 0
     pr = json.loads(capsys.readouterr().out)["provider_reported"]
     assert pr["requests_with_usage"] == 2
-    assert pr["actual_cache_read_tokens"] == 2400
-    assert pr["actual_cache_write_tokens"] == 2400
+    # This fixture's unverified model is excluded from simulation, so no
+    # unlike-population comparison should be presented.
+    assert pr["actual_cache_read_tokens"] is None
+    assert pr["actual_cache_write_tokens"] is None
+    assert pr["requests_compared"] == 0
 
 
 def test_langfuse_no_usage_details_means_no_section(tmp_path, capsys):
@@ -125,5 +128,5 @@ def test_litellm_prompt_tokens_compared_cache_not_mapped(tmp_path, capsys):
     assert pr["requests_with_usage"] == 3
     assert pr["actual_prompt_tokens"] == 8700
     # cache_hit must not leak into cache comparison
-    assert pr["actual_cache_read_tokens"] == 0
-    assert pr["actual_cache_write_tokens"] == 0
+    assert pr["actual_cache_read_tokens"] is None
+    assert pr["actual_cache_write_tokens"] is None

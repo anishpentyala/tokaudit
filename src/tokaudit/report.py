@@ -127,29 +127,40 @@ def _provider_reported(requests: List[Request], sim: SimulationResult) -> Option
     their own tokenizers and hidden context, so exact equality is not
     expected; large divergence means the simulation or the log's coverage
     should be questioned."""
+    from collections import Counter
+
     with_usage = [r for r in requests if r.actual_usage]
     if not with_usage:
         return None
-    sim_read = sum(c.read for c in sim.per_request)
-    sim_written = sum(c.written for c in sim.per_request)
-    actual_read = sum(r.actual_usage.get("cache_read_tokens", 0) for r in with_usage)
-    actual_written = sum(r.actual_usage.get("cache_write_tokens", 0) for r in with_usage)
-    actual_prompt = sum(r.actual_usage.get("prompt_tokens", 0) for r in with_usage)
-    return {
+    request_counts = Counter(r.rid for r in requests)
+    simulation_counts = Counter(c.rid for c in sim.per_request)
+    ambiguous = sorted(rid for rid in request_counts.keys() | simulation_counts.keys()
+                       if request_counts[rid] > 1 or simulation_counts[rid] > 1)
+    costs = {c.rid: c for c in sim.per_request if c.rid not in ambiguous}
+    matched = [(r, costs[r.rid]) for r in with_usage
+               if r.rid in costs and r.rid not in ambiguous]
+    result = {
         "requests_with_usage": len(with_usage),
-        "actual_cache_read_tokens": actual_read,
-        "actual_cache_write_tokens": actual_written,
-        "actual_prompt_tokens": actual_prompt,
-        "simulated_cache_read_tokens": sim_read,
-        "simulated_cache_write_tokens": sim_written,
-        "note": ("Provider-reported fields come from the export (Helicone "
-                 "prompt_cache_read_tokens / prompt_cache_write_tokens / "
-                 "prompt_tokens), counted with the provider's tokenizer and "
-                 "hidden context; the simulation re-tokenizes a canonical "
-                 "render. Exact equality is not expected - treat large "
-                 "divergence as a signal to question coverage or model "
-                 "assumptions, not as a billing discrepancy by itself."),
+        "requests_compared": len(matched),
+        "ambiguous_request_ids": ambiguous,
+        "coverage": {},
+        "note": ("Provider-reported fields come from the export; missing fields are unknown, "
+                 "not zero. Each field compares only requests with that explicit field and "
+                 "one uniquely matching simulated request. Requests skipped by simulation "
+                 "and ambiguous duplicate IDs are excluded. Provider tokenizers and hidden "
+                 "context differ from the canonical render, so exact equality is not expected. "
+                 "Divergence alone is not evidence of a billing discrepancy."),
     }
+    for field, actual_key, simulated_key, attribute in (
+        ("cache_read_tokens", "actual_cache_read_tokens", "simulated_cache_read_tokens", "read"),
+        ("cache_write_tokens", "actual_cache_write_tokens", "simulated_cache_write_tokens", "written"),
+        ("prompt_tokens", "actual_prompt_tokens", "simulated_prompt_tokens", "total_input"),
+    ):
+        covered = [(r, c) for r, c in matched if field in r.actual_usage]
+        result["coverage"][field] = len(covered)
+        result[actual_key] = sum(r.actual_usage[field] for r, _ in covered) if covered else None
+        result[simulated_key] = sum(getattr(c, attribute) for _, c in covered) if covered else None
+    return result
 
 
 def _recommendations(
@@ -253,17 +264,19 @@ def to_markdown(report: Dict) -> str:
     if report.get("provider_reported"):
         pr = report["provider_reported"]
         lines += ["", "## Provider-reported vs simulated", ""]
-        lines.append(f"- Requests with provider usage fields: {pr['requests_with_usage']}")
-        lines.append(
-            f"- Cache read tokens: provider {pr['actual_cache_read_tokens']:,} "
-            f"vs simulated {pr['simulated_cache_read_tokens']:,}"
-        )
-        lines.append(
-            f"- Cache write tokens: provider {pr['actual_cache_write_tokens']:,} "
-            f"vs simulated {pr['simulated_cache_write_tokens']:,}"
-        )
-        if pr["actual_prompt_tokens"]:
-            lines.append(f"- Provider prompt tokens: {pr['actual_prompt_tokens']:,}")
+        lines.append(f"- Requests with provider usage fields: {pr['requests_with_usage']}; "
+                     f"uniquely matched to simulation: {pr['requests_compared']}")
+        for label, field, actual, simulated in (
+            ("Cache read tokens", "cache_read_tokens", "actual_cache_read_tokens", "simulated_cache_read_tokens"),
+            ("Cache write tokens", "cache_write_tokens", "actual_cache_write_tokens", "simulated_cache_write_tokens"),
+            ("Prompt tokens", "prompt_tokens", "actual_prompt_tokens", "simulated_prompt_tokens"),
+        ):
+            count = pr['coverage'][field]
+            values = (f"provider {pr[actual]:,} vs simulated {pr[simulated]:,}" if count
+                      else "unknown (no comparable reported field)")
+            lines.append(f"- {label}: {values}; coverage {count} request(s)")
+        if pr['ambiguous_request_ids']:
+            lines.append(f"- Ambiguous request IDs excluded: {len(pr['ambiguous_request_ids'])}")
         lines.append(f"- {pr['note']}")
     lines += ["", "## Recommendations", ""]
     for r in report["recommendations"]:
