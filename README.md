@@ -95,7 +95,14 @@ both formats: exit 1 for findings when requested, otherwise exit 0 after a
 valid check. Input errors still stop before overwriting the output file.
 
 Coverage counts describe recognized rows, not the completeness of every
-optional billing field or verified billing correctness. JSON has no request
+optional billing field or verified billing correctness.
+The integrity reader does not retain complete input rows after checking them.
+Cross-row duplicate checks keep only the first positive-spend amount and line
+for each qualifying request ID. The returned report still keeps all findings,
+and the duplicate-ID map grows with distinct billable IDs. Memory is therefore
+not constant: one large input line, many findings, or many unique IDs can still
+require substantial memory. Request bodies are parsed as part of each JSON row
+but are not copied into the report or retained for cross-row checks. JSON has no request
 content, but request IDs and diagnostic values can still be sensitive. Review
 before sharing. The Python `run_integrity(path)` API still returns findings;
 `build_integrity_report(path)` returns the structured report.
