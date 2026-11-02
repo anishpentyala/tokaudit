@@ -80,17 +80,19 @@ def _parse_ts(value: Any) -> Optional[float]:
 
 
 def _content_to_text(content: Any) -> str:
-    """Flatten string or typed-part content to text."""
+    """Accept represented text only; never silently discard other content."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
         texts = []
         for part in content:
-            if isinstance(part, dict):
-                if part.get("type") in ("text", "input_text", None) and "text" in part:
-                    texts.append(str(part["text"]))
+            if not isinstance(part, dict) or part.get("type") not in ("text", "input_text", None):
+                raise ValueError("unsupported message content: only text parts are represented")
+            if not isinstance(part.get("text"), str):
+                raise ValueError("text content must be a string")
+            texts.append(part["text"])
         return "".join(texts)
-    return ""
+    raise ValueError("unsupported message content: expected a string or text-part list")
 
 
 def _breakpoint_marked(content: Any) -> bool:
@@ -135,6 +137,9 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
     ts = _parse_ts(obj.get("ts", obj.get("timestamp", obj.get("created"))))
     provider_hint = str(obj.get("provider") or "").lower()
 
+    for field in ("tools", "functions", "tool_choice", "function_call"):
+        if obj.get(field) not in (None, [], {}):
+            raise ValueError(f"record {rid}: unsupported {field} configuration; export represented text-only requests")
     messages: List[Message] = []
     breakpoints: List[int] = []
 
@@ -159,6 +164,11 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
     for m in raw_messages:
         if not isinstance(m, dict):
             raise ValueError(f"record {rid}: message is not an object")
+        if m.get("role") in ("tool", "function"):
+            raise ValueError(f"record {rid}: unsupported tool/function message role")
+        for field in ("tool_calls", "function_call", "tool_call_id"):
+            if m.get(field) not in (None, [], {}):
+                raise ValueError(f"record {rid}: unsupported {field} message payload")
         messages.append(
             Message(role=str(m.get("role", "user")), text=_content_to_text(m.get("content")))
         )
