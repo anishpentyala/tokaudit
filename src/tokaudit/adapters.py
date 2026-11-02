@@ -138,6 +138,17 @@ _V2_LIST_GUIDANCE = (
 )
 
 
+_REQUEST_CONTENT_FIELDS = ("tools", "functions", "tool_choice", "function_call")
+
+
+def _retain_content_fields(source: Dict[str, Any], target: Dict[str, Any]) -> None:
+    # The parser must see unrepresented request content before it can reject
+    # it. Dropping these fields here would bypass text-only coverage checks.
+    for key in _REQUEST_CONTENT_FIELDS:
+        if key in source:
+            target[key] = source[key]
+
+
 def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize a known export record to parse_record's input shape.
 
@@ -159,6 +170,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             "ts": obj.get("startTime"),
             "provider": obj.get("custom_llm_provider") or None,
         }
+        _retain_content_fields(obj, out)
         messages = obj.get("messages")
         if isinstance(messages, str):
             out["prompt"] = messages
@@ -210,6 +222,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(inp, list):
             out["messages"] = inp
         elif isinstance(inp, dict) and isinstance(inp.get("messages"), list):
+            _retain_content_fields(inp, out)
             out["messages"] = inp["messages"]
             if inp.get("system") is not None:
                 out["system"] = inp["system"]
@@ -253,6 +266,8 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             "ts": obj.get("request_created_at", obj.get("created_at")),
             "provider": obj.get("provider"),
         }
+        if isinstance(body, dict):
+            _retain_content_fields(body, out)
         if isinstance(body, dict) and isinstance(body.get("messages"), list):
             out["messages"] = body["messages"]
             if body.get("system") is not None:

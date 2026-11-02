@@ -5,7 +5,7 @@
 Audit LLM request logs for token waste and quantify prompt-caching savings.
 
 Most teams running LLM workloads pay for the same prompt prefix over and
-over: system prompts, tool definitions, few-shot examples, retrieved
+over: system prompts, few-shot examples, retrieved
 documents. Both major providers offer prompt caching with steep discounts
 on reused prefixes, but it is hard to know how much of your own traffic
 would actually hit the cache. tokaudit answers that from your logs.
@@ -136,6 +136,22 @@ tokenshrink) and neural compressors (Microsoft's LLMLingua family), but
 none focused on workload-level prompt-cache simulation from request
 logs. That scan was not exhaustive; if a maintained tool does this well,
 use it and tell us.
+
+## Text-only input coverage
+
+Analysis requires strings or lists of text/input_text parts with string text.
+Non-text parts (images, audio, tool-use/results, thinking) and malformed content
+are rejected instead of being silently discarded or stringified. Nonempty tool
+and function configuration, tool-call payloads and tool/function-role messages
+are also rejected. The LiteLLM, Langfuse and Helicone adapters preserve these
+fields for this check. A mixed JSONL log fails at the unsupported row before
+writing a report; it does not silently analyze only the text subset.
+
+This is a text-only audit, not multimodal token counting or a full provider
+request validator. Ordinary text and text-part cache markers remain supported.
+Other request settings still need the simulation's existing assumptions and
+duplicate-scenario caveats. Re-export a deliberately scoped text-only workload
+rather than deleting unsupported fields and treating the result as the original.
 
 ## Provider-usage comparison coverage
 
