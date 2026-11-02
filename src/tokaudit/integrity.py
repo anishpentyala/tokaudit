@@ -276,30 +276,38 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
     return findings
 
 
+def _duplicate_spend_finding(
+    seen: Dict[str, Tuple[int, float]], line: int, obj: Dict[str, Any],
+) -> Optional[Finding]:
+    """Retain only first billable ID evidence, never the complete raw row."""
+    if not _is_litellm_spendlog(obj):
+        return None
+    rid = obj.get("request_id")
+    spend = _num(obj.get("spend"))
+    if not isinstance(rid, str) or not rid or spend is None or spend <= 0:
+        return None
+    if rid in seen:
+        first_line, first_spend = seen[rid]
+        return Finding(
+            "duplicate_spend_record", line, rid,
+            f"request_id already billed ${first_spend:g} at line "
+            f"{first_line}; this row bills ${spend:g} again. Verify "
+            "these are distinct billable calls - retried or streamed "
+            "re-emissions sharing one request_id can look identical "
+            "without being double billing.",
+            LITELLM + "25351")
+    seen[rid] = (line, spend)
+    return None
+
+
 def check_duplicate_spend(records: List[Tuple[int, Dict[str, Any]]]) -> List[Finding]:
-    """I5: the same request_id counted with spend>0 on more than one row
-    (#25351-class double counting inflates spend totals)."""
+    """I5: repeated positive spend on one request ID (#25351 class)."""
     seen: Dict[str, Tuple[int, float]] = {}
     findings: List[Finding] = []
     for line, obj in records:
-        if not _is_litellm_spendlog(obj):
-            continue
-        rid = obj.get("request_id")
-        spend = _num(obj.get("spend"))
-        if not isinstance(rid, str) or not rid or spend is None or spend <= 0:
-            continue
-        if rid in seen:
-            first_line, first_spend = seen[rid]
-            findings.append(Finding(
-                "duplicate_spend_record", line, rid,
-                f"request_id already billed ${first_spend:g} at line "
-                f"{first_line}; this row bills ${spend:g} again. Verify "
-                "these are distinct billable calls - retried or streamed "
-                "re-emissions sharing one request_id can look identical "
-                "without being double billing.",
-                LITELLM + "25351"))
-        else:
-            seen[rid] = (line, spend)
+        finding = _duplicate_spend_finding(seen, line, obj)
+        if finding is not None:
+            findings.append(finding)
     return findings
 
 
@@ -334,9 +342,13 @@ def build_integrity_report(path: str) -> Dict[str, Any]:
 
     Counts describe checked input, not billing completeness or correctness.
     No request content is copied into the report. IDs and diagnostic values
-    may still be sensitive.
+    may still be sensitive. Raw rows are released as iteration advances;
+    duplicate detection retains only first positive-spend evidence by ID.
+    Findings, unique billable IDs and a single large row still consume memory.
     """
-    records: List[Tuple[int, Dict[str, Any]]] = []
+    checked_records = 0
+    seen_spend: Dict[str, Tuple[int, float]] = {}
+    duplicate_findings: List[Finding] = []
     findings: List[Finding] = []
     formats: Counter = Counter()
     try:
@@ -371,15 +383,18 @@ def build_integrity_report(path: str) -> Dict[str, Any]:
             else:
                 shape = "langfuse"
             formats[shape] += 1
-            records.append((idx + 1, obj))
+            checked_records += 1
             findings.extend(check_record(obj, idx + 1))
-    if not records:
+            duplicate = _duplicate_spend_finding(seen_spend, idx + 1, obj)
+            if duplicate is not None:
+                duplicate_findings.append(duplicate)
+    if not checked_records:
         raise SystemExit(f"{path}: no accounting records to check")
-    findings.extend(check_duplicate_spend(records))
+    findings.extend(duplicate_findings)
     return {
         "schema_version": 1,
         "summary": {
-            "checked_records": len(records),
+            "checked_records": checked_records,
             "format_counts": dict(sorted(formats.items())),
             "finding_count": len(findings),
             "invariant_counts": dict(sorted(Counter(
