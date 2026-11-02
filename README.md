@@ -137,6 +137,17 @@ none focused on workload-level prompt-cache simulation from request
 logs. That scan was not exhaustive; if a maintained tool does this well,
 use it and tell us.
 
+## Message structure and cache identity
+
+The canonical role-header rendering is used for token estimates, not as an
+unambiguous serialization of a request. A literal `<user>` header in content
+must not become a real message boundary. Cache identity therefore combines
+exact token IDs with the roles and text lengths at message boundaries; exact
+request duplicate scenarios compare structured role/text messages as well as
+model, cache key, session and breakpoint layout. Token counts and the rendering
+template are unchanged. This prevents these structural aliases, not every
+difference between the canonical template and a provider's real rendering.
+
 ## Text-only input coverage
 
 Analysis requires strings or lists of text/input_text parts with string text.

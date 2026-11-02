@@ -34,10 +34,11 @@ from .logs import Request
 from .rules import ProviderRules
 
 
-PrefixKey = Union[bytes, Tuple[int, ...]]
+TokenKey = Union[bytes, Tuple[int, ...]]
+PrefixKey = Tuple[TokenKey, Tuple[Tuple[str, int], ...]]
 
 
-def _prefix_key(tokens: List[int]) -> PrefixKey:
+def _prefix_key(tokens: List[int]) -> TokenKey:
     """Retain exact token identity without keeping one Python int per token.
 
     Signed 64-bit packing covers built-in tokenizers. Arbitrary-size custom
@@ -174,7 +175,12 @@ def simulate(
         for k in range(len(parts)):
             prefix_text = "\n".join(parts[: k + 1])
             toks = encode(prefix_text)
-            bounds.append((len(toks), _prefix_key(toks)))
+            # Token content alone cannot distinguish literal role-header
+            # text from real message boundaries in the canonical render.
+            # Keep role and character length per message, without duplicating
+            # all prompt text in every prefix key. Counts stay unchanged.
+            layout = tuple((m.role, len(m.text)) for m in req.messages[: k + 1])
+            bounds.append((len(toks), (_prefix_key(toks), layout)))
         total = bounds[-1][0] if bounds else 0
         eligible = [(b, h) for b, h in bounds if b >= min_pref]
 
@@ -282,4 +288,4 @@ def simulate(
         wasted_write_tokens=wasted,
         notes=notes,
         skipped=skipped,
-)
+    )
