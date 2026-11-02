@@ -84,10 +84,10 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         else:
             out = "\n---\n".join(to_markdown(r) for r in reports)
 
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as fh:
+    if output:
+        with open(output, "w", encoding="utf-8") as fh:
             fh.write(out + "\n")
-        print(f"wrote {args.output}")
+        print(f"wrote {output}")
     else:
         print(out)
     return 0
