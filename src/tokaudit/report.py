@@ -29,11 +29,14 @@ def build_report(
     pricing = None
     if price_sheet is not None:
         from .prices import cost_usd
-        models_by_rid = {req.rid: req.model for req in requests}
+        from collections import Counter
+        id_counts = Counter(req.rid for req in requests)
+        models_by_rid = {req.rid: req.model for req in requests
+                         if id_counts[req.rid] == 1}
         priced = {"baseline_usd": 0.0, "simulated_usd": 0.0, "priced_requests": 0,
                   "unpriced": []}
         for cst in sim.per_request:
-            model = models_by_rid.get(cst.rid, "")
+            model = cst.model or models_by_rid.get(cst.rid, "")
             rates = price_sheet.get(model)
             if rates is None:
                 priced["unpriced"].append(cst.rid)
