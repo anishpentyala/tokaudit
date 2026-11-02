@@ -70,6 +70,16 @@ shape; LiteLLM itself computed $0 and recorded why). On
 standard-logging-payload records, response_cost is read as the spend
 field. Offline; no request content is read.
 
+A clean integrity result requires accounting coverage. Empty files, unrelated
+JSON, request-only rows, paginated envelopes and rows with no supported
+accounting fields stop with file/line guidance before writing a report. Mixed
+logs fail on the unsupported row rather than silently checking a subset.
+Supported partial accounting rows remain valid; missing optional fields are
+not manufactured as zero. Present non-numeric/non-finite values in LiteLLM
+(including `response_cost`), Helicone and Langfuse accounting fields produce
+findings. A zero-finding result means only that the available supported fields
+passed these checks, not that every billing field was present or correct.
+
 Every finding is labelled with the documented upstream failure class
 whose signature it matches (e.g. litellm #40100/#48937/#35829/#25351,
 langfuse #14987) and a link to the issue. Some anchored issues are
