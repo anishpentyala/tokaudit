@@ -126,8 +126,9 @@ def simulate(
     # is an explicit conservative scenario (not provider semantics) that also
     # partitions by the app's session_id.
     caches: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, float]] = {}
-    read_marks: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, bool]] = {}
-    written_marks: Dict[int, List[PrefixKey]] = {}  # request index -> boundary keys written
+    read_marks: Dict[Tuple[str, Optional[str], Optional[str]], Dict[Tuple[PrefixKey, int], bool]] = {}
+    generations: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, int]] = {}
+    written_marks: Dict[int, List[Tuple[PrefixKey, int]]] = {}  # request index -> boundary keys written
 
     per_request: List[RequestCost] = []
     charged_delta: List[Tuple[int, int]] = []  # (request index, charged delta tokens)
@@ -164,6 +165,7 @@ def simulate(
         namespace = (req.model, req.cache_key, req.session_id if isolate_sessions else None)
         cache = caches.setdefault(namespace, {})
         hash_read = read_marks.setdefault(namespace, {})
+        cache_generations = generations.setdefault(namespace, {})
 
         # Boundary k is the prefix covering the first k+1 messages. Keys
         # preserve exact token equality; a raw hash alone is not a cache hit.
@@ -182,7 +184,7 @@ def simulate(
             expiry = cache.get(h)
             if expiry is not None and expiry >= ts:
                 read_tokens = b
-                hash_read[h] = True
+                hash_read[(h, cache_generations[h])] = True
                 if rules.refresh_on_read:
                     refresh = ttl if rules.read_refresh_seconds is None else rules.read_refresh_seconds
                     cache[h] = max(expiry, ts + refresh)
@@ -197,7 +199,7 @@ def simulate(
             write_bounds = [total] if total >= min_pref and total > read_tokens else []
 
         written_delta = 0
-        marks: List[PrefixKey] = []
+        marks: List[Tuple[PrefixKey, int]] = []
         if write_bounds:
             furthest = max(write_bounds)
             written_delta = furthest - read_tokens
@@ -208,8 +210,9 @@ def simulate(
                     expiry = cache.get(h)
                     if expiry is None or expiry < ts:
                         cache[h] = ts + ttl
-                        hash_read.setdefault(h, False)
-                    marks.append(h)
+                        cache_generations[h] = cache_generations.get(h, 0) + 1
+                        hash_read[(h, cache_generations[h])] = False
+                    marks.append((h, cache_generations[h]))
         written_marks[i] = marks
         if written_delta:
             charged_delta.append((i, written_delta))
@@ -279,4 +282,4 @@ def simulate(
         wasted_write_tokens=wasted,
         notes=notes,
         skipped=skipped,
-      )
+)
