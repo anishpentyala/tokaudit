@@ -80,6 +80,26 @@ not manufactured as zero. Present non-numeric/non-finite values in LiteLLM
 findings. A zero-finding result means only that the available supported fields
 passed these checks, not that every billing field was present or correct.
 
+For CI artifacts or downstream processing, request a machine-readable report:
+
+```bash
+python -m tokaudit.cli integrity your_log.jsonl --format json --output integrity.json --fail-on-findings
+```
+
+JSON schema version 1 includes `summary.checked_records`, `format_counts`,
+`finding_count`, `invariant_counts`, and the complete `findings` array. Each
+finding retains its invariant, physical JSONL line number, request ID, detail
+and source anchor. Unlike the text preview, JSON does not truncate finding
+families after five rows. `--fail-on-findings` keeps the same exit policy in
+both formats: exit 1 for findings when requested, otherwise exit 0 after a
+valid check. Input errors still stop before overwriting the output file.
+
+Coverage counts describe recognized rows, not the completeness of every
+optional billing field or verified billing correctness. JSON has no request
+content, but request IDs and diagnostic values can still be sensitive. Review
+before sharing. The Python `run_integrity(path)` API still returns findings;
+`build_integrity_report(path)` returns the structured report.
+
 Every finding is labelled with the documented upstream failure class
 whose signature it matches (e.g. litellm #40100/#48937/#35829/#25351,
 langfuse #14987) and a link to the issue. Some anchored issues are
