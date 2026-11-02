@@ -55,19 +55,33 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
         )
     out: Dict[str, Any] = {}
     for key, value in data.items():
-        if key in ("dup_min_tokens",):
-            try:
-                out[key] = int(value)
-            except (TypeError, ValueError):
+        if key == "dup_min_tokens":
+            if type(value) is not int:
                 raise SystemExit(f"config file {path}: '{key}' must be an integer")
+            out[key] = value
         elif key == "isolate_sessions":
-            out[key] = bool(value)
+            if type(value) is not bool:
+                raise SystemExit(f"config file {path}: '{key}' must be boolean")
+            out[key] = value
         elif key == "what_if":
             if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
                 raise SystemExit(f"config file {path}: 'what_if' must be a list of strings")
+            from .whatif import SCENARIOS
+            unknown_scenarios = sorted(set(value) - set(SCENARIOS))
+            if unknown_scenarios:
+                raise SystemExit(f"config file {path}: unknown what_if scenarios: "
+                                 + ", ".join(unknown_scenarios))
             out[key] = list(value)
         else:
             if not isinstance(value, str):
                 raise SystemExit(f"config file {path}: '{key}' must be a string")
+            choices = {
+                "provider": ("auto", "openai", "anthropic", "generic"),
+                "tokenizer": ("auto", "exact", "estimate"),
+                "format": ("md", "json"),
+            }
+            if key in choices and value not in choices[key]:
+                raise SystemExit(f"config file {path}: invalid '{key}' value {value!r}; "
+                                 f"choose from {', '.join(choices[key])}")
             out[key] = value
     return out
