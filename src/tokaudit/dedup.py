@@ -58,8 +58,20 @@ def find_duplicates(
                 seen += 1
         tokenized.append(per_msg)
 
+    def exact_groups():
+        for bucket in index.values():
+            if len({r for r, _, _ in bucket}) < 2:
+                continue
+            # Hashes narrow candidates; only equal token windows share a seed.
+            # Partition lazily so unique windows do not retain full token tuples.
+            groups: Dict[Tuple[int, ...], List[Tuple[int, int, int]]] = {}
+            for ridx, midx, start in bucket:
+                seed = tuple(tokenized[ridx][midx][start : start + shingle])
+                groups.setdefault(seed, []).append((ridx, midx, start))
+            yield from groups.values()
+
     blocks: List[DuplicateBlock] = []
-    for h, occs in index.items():
+    for occs in exact_groups():
         req_ids = {o[0] for o in occs}
         if len(req_ids) < 2:
             continue
