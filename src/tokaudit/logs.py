@@ -105,21 +105,29 @@ def _breakpoint_marked(content: Any) -> bool:
 
 
 def _parse_actual_usage(value: Any, rid: str) -> Optional[Dict[str, int]]:
-    """Provider-reported usage from a raw record. Values are coerced with
-    int(); malformed values (None, lists, NaN/Infinity) raise a clear
-    error rather than an uncaught TypeError/OverflowError."""
+    """Read nonnegative integral counts without truncation or bool coercion.
+
+    Integral floats and base-10 integer strings remain supported for exported
+    formats. Missing optional usage is distinct from malformed present data.
+    """
     if not isinstance(value, dict):
         return None
     usage: Dict[str, int] = {}
     for k, v in value.items():
         try:
-            usage[str(k)] = int(v)
+            if isinstance(v, bool):
+                raise ValueError("boolean is not a token count")
+            count = int(v)
+            if count < 0 or (isinstance(v, float) and v != count):
+                raise ValueError("token counts must be nonnegative integers")
         except (TypeError, OverflowError, ValueError) as exc:
             raise ValueError(
-                f"record {rid}: actual_usage.{k} is not an integer "
+                f"record {rid}: actual_usage.{k} is not a nonnegative integer "
                 f"({v!r}): {exc}"
             ) from exc
+        usage[str(k)] = count
     return usage
+
 
 def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
     rid = str(obj.get("id") or f"req-{idx}")
