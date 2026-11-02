@@ -26,11 +26,28 @@ expiry concerns (log order, nothing expires); a note records it.
 
 from __future__ import annotations
 
+from array import array
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from .logs import Request
 from .rules import ProviderRules
+
+
+PrefixKey = Union[bytes, Tuple[int, ...]]
+
+
+def _prefix_key(tokens: List[int]) -> PrefixKey:
+    """Retain exact token identity without keeping one Python int per token.
+
+    Signed 64-bit packing covers built-in tokenizers. Arbitrary-size custom
+    token IDs keep exact tuple equality instead of truncating or hashing.
+    Keys only live within this process, so native byte order is immaterial.
+    """
+    try:
+        return array("q", tokens).tobytes()
+    except OverflowError:
+        return tuple(tokens)
 
 
 @dataclass
@@ -108,9 +125,9 @@ def simulate(
     # that can overstate reuse when a log mixes accounts. --isolate-sessions
     # is an explicit conservative scenario (not provider semantics) that also
     # partitions by the app's session_id.
-    caches: Dict[Tuple[str, Optional[str], Optional[str]], Dict[int, float]] = {}
-    read_marks: Dict[Tuple[str, Optional[str], Optional[str]], Dict[int, bool]] = {}
-    written_marks: Dict[int, List[int]] = {}  # request index -> boundary hashes written
+    caches: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, float]] = {}
+    read_marks: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, bool]] = {}
+    written_marks: Dict[int, List[PrefixKey]] = {}  # request index -> boundary keys written
 
     per_request: List[RequestCost] = []
     charged_delta: List[Tuple[int, int]] = []  # (request index, charged delta tokens)
@@ -148,21 +165,20 @@ def simulate(
         cache = caches.setdefault(namespace, {})
         hash_read = read_marks.setdefault(namespace, {})
 
-        # Boundary k is the prefix covering the first k+1 messages, hashed
-        # from its own rendered text so shared text prefixes always hash
-        # equal across requests.
+        # Boundary k is the prefix covering the first k+1 messages. Keys
+        # preserve exact token equality; a raw hash alone is not a cache hit.
         parts = [f"<{m.role}>\n{m.text}" for m in req.messages]
-        bounds: List[Tuple[int, int]] = []  # (token_count, prefix_hash)
+        bounds: List[Tuple[int, PrefixKey]] = []  # (token_count, prefix_key)
         for k in range(len(parts)):
             prefix_text = "\n".join(parts[: k + 1])
             toks = encode(prefix_text)
-            bounds.append((len(toks), hash(tuple(toks))))
+            bounds.append((len(toks), _prefix_key(toks)))
         total = bounds[-1][0] if bounds else 0
         eligible = [(b, h) for b, h in bounds if b >= min_pref]
 
         # Longest unexpired cached prefix.
         read_tokens = 0
-        for b, h in sorted(eligible, reverse=True):
+        for b, h in sorted(eligible, key=lambda bound: bound[0], reverse=True):
             expiry = cache.get(h)
             if expiry is not None and expiry >= ts:
                 read_tokens = b
@@ -181,7 +197,7 @@ def simulate(
             write_bounds = [total] if total >= min_pref and total > read_tokens else []
 
         written_delta = 0
-        marks: List[int] = []
+        marks: List[PrefixKey] = []
         if write_bounds:
             furthest = max(write_bounds)
             written_delta = furthest - read_tokens
@@ -263,4 +279,4 @@ def simulate(
         wasted_write_tokens=wasted,
         notes=notes,
         skipped=skipped,
-          )
+      )
