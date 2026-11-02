@@ -351,3 +351,13 @@ index (full Python tuples used34.67MiB). Runtime was0.150s versus0.121s on that
 run. This is a bounded resource check, not a general performance guarantee.
 The regression uses custom positive token IDs with deterministic equal tuple
 hashes; it does not establish a collision rate for built-in tokenizers.
+
+### Wasted-write attribution across expiry
+
+Wasted cache writes are tracked per prefix-write generation. A read of a
+rewritten prefix does not retroactively credit an earlier write that expired
+unused. Read refresh extends the same generation; it does not create a new
+write. The existing boundary approximation remains: if any stored boundary
+from one charged write is later read during its lifetime, the whole charged
+delta is treated as used. This is not token-by-token attribution or a provider
+billing verdict.
