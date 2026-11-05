@@ -64,7 +64,8 @@ OpenAI/LiteLLM usage shape; records whose own fields document a
 cache-inclusive sum are not flagged), duplicate-billed request IDs,
 provider-reported cost fields inside usage chunks (suppressed on
 providers where that field is a documented contract, e.g. OpenRouter),
-non-numeric/non-finite accounting fields, and the gateway's OWN
+non-numeric/non-finite accounting fields, negative or fractional supported
+token counts (even when totals balance), and the gateway's OWN
 zero-cost diagnostic when a record carries it (standard-logging-payload
 shape; LiteLLM itself computed $0 and recorded why). On
 standard-logging-payload records, response_cost is read as the spend
@@ -532,3 +533,11 @@ sorted set of ID labels. Markdown separates message occurrences from distinct
 request records. Repeated-token volume still counts message occurrences; it is
 not a separate-request or billing estimate. Manually constructed legacy
 `DuplicateBlock` values without indices retain an ID-based count fallback.
+
+Integrity checks treat supported LiteLLM/Helicone prompt/completion/total token counts as nonnegative integers. An integral JSON float
+remains accepted. Negative/fractional values produce `invalid_token_count`,
+not a correction or inferred replacement. This rule does not apply to cost
+fields: refunds or credits may be negative. Provider-specific nested detail
+counts and Langfuse flat usage buckets (which may represent other units) are
+outside this check. Related issue links describe failure classes,
+not proof that an export has that upstream bug or was misbilled.

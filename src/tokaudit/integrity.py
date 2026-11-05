@@ -190,6 +190,22 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
                 f"{field_name}={raw!r} is not a finite number",
                 LANGFUSE + "14987" if _is_langfuse_observation(obj) else LITELLM + "25351"))
 
+    # Token counts must be nonnegative integral values even when their sum
+    # balances. Do not apply this rule to spend/cost: credits can be negative.
+    for field_name, raw in fields:
+        # Langfuse flat usage buckets can represent non-token units. Do not
+        # impose an integer token contract on arbitrary usageDetails values.
+        if field_name.startswith("usageDetails.") or field_name in ("spend", "response_cost"):
+            continue
+        value = _num(raw)
+        if value is not None and (value < 0 or (isinstance(raw, float) and not raw.is_integer())):
+            findings.append(Finding(
+                "invalid_token_count", line, rid,
+                f"{field_name}={raw!r} is not a nonnegative integer token count. "
+                "Verify the export's usage schema and upstream normalization; "
+                "this does not establish misbilling or a specific upstream bug.",
+                LITELLM + "18750" if value < 0 else LANGFUSE + "14987"))
+
     if not _is_litellm_spendlog(obj):
         return findings
 
