@@ -107,44 +107,65 @@ def analyze_duplicates(
             for ridx, midx, start in bucket:
                 seed = tuple(tokenized[ridx][midx][start : start + shingle])
                 groups.setdefault(seed, []).append((ridx, midx, start))
-            yield from groups.values()
+            # A short/divergent first occurrence must not hide another pair
+            # sharing a full minimum-length block. Split off verified cohorts,
+            # reusing the same exact-run cache used by extension below.
+            pending = list(reversed(list(groups.values())))
+            required = max(shingle, min_tokens)
+            while pending:
+                occs = [(r, m, start) for r, m, start in pending.pop()
+                        if start + required <= len(tokenized[r][m])]
+                if len({r for r, _, _ in occs}) < 2:
+                    continue
+                anchor = occs[0]
+                good, rest = [], []
+                for occurrence in occs:
+                    if equal_run(anchor, occurrence) >= required:
+                        good.append(occurrence)
+                    else:
+                        rest.append(occurrence)
+                if len({r for r, _, _ in good}) >= 2:
+                    yield good
+                if len({r for r, _, _ in rest}) >= 2:
+                    pending.append(rest)
 
     # A prior extension proves an equal run along this pair's alignment.
     # Reuse only inside that run; its right edge is a known mismatch/end.
     # Bound memo entries independently of the shingle index. Eviction only
     # costs repeated comparisons, never changes the candidates or matches.
     runs = OrderedDict()
+    def equal_run(anchor, occurrence):
+        r0, m0, s0 = anchor
+        ridx, midx, start = occurrence
+        toks0, toks = tokenized[r0][m0], tokenized[ridx][midx]
+        alignment = (r0, m0, ridx, midx, start - s0)
+        run = runs.get(alignment)
+        if run is not None and run[0] <= s0 and s0 + shingle <= run[1]:
+            runs.move_to_end(alignment)
+            return run[1] - s0
+        length = shingle
+        while (s0 + length < len(toks0) and start + length < len(toks)
+               and toks0[s0 + length] == toks[start + length]):
+            length += 1
+        runs[alignment] = (s0, s0 + length)
+        runs.move_to_end(alignment)
+        if len(runs) > 4096:
+            runs.popitem(last=False)
+        return length
+
     blocks: List[DuplicateBlock] = []
     for occs in exact_groups():
         req_ids = {o[0] for o in occs}
         if len(req_ids) < 2:
             continue
         r0, m0, s0 = occs[0]
-        toks0 = tokenized[r0][m0]
         good: List[Tuple[int, int, int]] = []  # (request position, midx, length)
         seen_occ = set()
         for ridx, midx, start in occs:
             if (ridx, midx) in seen_occ:
                 continue
             seen_occ.add((ridx, midx))
-            toks = tokenized[ridx][midx]
-            alignment = (r0, m0, ridx, midx, start - s0)
-            run = runs.get(alignment)
-            if run is not None and run[0] <= s0 and s0 + shingle <= run[1]:
-                length = run[1] - s0
-                runs.move_to_end(alignment)
-            else:
-                length = shingle
-                while (
-                    s0 + length < len(toks0)
-                    and start + length < len(toks)
-                    and toks0[s0 + length] == toks[start + length]
-                ):
-                    length += 1
-                runs[alignment] = (s0, s0 + length)
-                runs.move_to_end(alignment)
-                if len(runs) > 4096:
-                    runs.popitem(last=False)
+            length = equal_run((r0, m0, s0), (ridx, midx, start))
             if length >= min_tokens:
                 good.append((ridx, midx, length))
         if len({g[0] for g in good}) < 2:
