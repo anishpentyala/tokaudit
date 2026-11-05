@@ -30,6 +30,9 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     dup_min = args.dup_min_tokens if args.dup_min_tokens is not None else cfg.get("dup_min_tokens", 128)
     if type(dup_min) is not int or dup_min < 1:
         raise SystemExit("dup_min_tokens must be a positive integer")
+    dup_max = args.dup_max_shingles if args.dup_max_shingles is not None else cfg.get("dup_max_shingles", 500_000)
+    if type(dup_max) is not int or dup_max < 0:
+        raise SystemExit("dup_max_shingles must be a nonnegative integer")
     isolate = args.isolate_sessions or bool(cfg.get("isolate_sessions", False))
     what_if = args.what_if if args.what_if is not None else cfg.get("what_if")
     output = args.output if args.output is not None else cfg.get("output")
@@ -58,7 +61,7 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         )
         duplicate_search = analyze_duplicates(
             group, encode,
-            min_tokens=dup_min, shingle=max(dup_min // 3, 8),
+            min_tokens=dup_min, shingle=max(dup_min // 3, 8), max_shingles=dup_max,
         )
         reports.append(
             build_report(group, sim, duplicate_search.blocks, ruleset, rules, backend.name,
@@ -175,6 +178,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                            "(not provider-documented behavior)")
     p_an.add_argument("--dup-min-tokens", type=int, default=None,
                       help="minimum size of repeated blocks to report")
+    p_an.add_argument("--dup-max-shingles", type=int, default=None,
+                      help="maximum indexed token windows per provider group (default 500000; "
+                           "0 disables duplicate indexing, not tokenization or cache simulation)")
     p_an.add_argument("--output", default=None, help="write the report to a file")
     p_an.add_argument("--omit-content-previews", action="store_true",
                       help="omit raw duplicate content previews; not full report anonymization")

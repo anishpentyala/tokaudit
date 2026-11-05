@@ -316,11 +316,12 @@ markers in the log are honored.
 `tokaudit analyze` reads defaults from `./.tokaudit.toml` when present
 (or from `--config PATH`). TOML values are validated before analysis:
 `isolate_sessions` must be a real boolean, `dup_min_tokens` a real integer
+and `dup_max_shingles` a nonnegative integer
 (no string/bool/fraction coercion), and provider/tokenizer/format/scenario
 names must match the CLI choices. Custom policy names and file paths remain
 supported. Invalid values stop with config-file guidance before report writes.
 Known keys: `rules`, `policy`, `tokenizer`,
-`provider`, `format`, `dup_min_tokens`, `isolate_sessions`, `what_if`,
+`provider`, `format`, `dup_min_tokens`, `dup_max_shingles`, `isolate_sessions`, `what_if`,
 `output`, `prices`, `omit_content_previews`. Unknown keys, invalid TOML and unreadable files fail
 closed with a clear error. Explicit CLI flags always win over the file.
 TOML parsing uses the standard library on Python 3.11+ and the bundled
@@ -464,7 +465,7 @@ Rows expose request IDs and model names, even with content previews omitted.
 
 Analysis reports `duplicate_search` in each provider group's JSON report and a
 shingle-index coverage line in Markdown: indexed windows, total eligible windows,
-the index budget (currently 500,000), and `index_complete`. Once the budget is
+the index budget (default 500,000 per provider group), and `index_complete`. Once the budget is
 used, later windows are not indexed. A capped search is labelled partial, even
 when it returns real blocks, and an empty result does not claim there are no
 duplicates in the unindexed portion.
@@ -472,7 +473,11 @@ duplicates in the unindexed portion.
 `index_complete` means every eligible token window entered the index. It does
 not mean every duplicate was discovered: extension, greedy suppression and the
 top-block limit remain heuristics. All messages are still tokenized and retained
-for comparison, so the index cap is not a total memory bound. Increasing it can
+for comparison, so the index cap is not a total memory bound. Set
+`--dup-max-shingles N` (or `dup_max_shingles = N` in config) to choose this
+per-provider-group budget. CLI overrides config; the default remains 500,000.
+Zero skips duplicate indexing while cache simulation and tokenization still
+run, and coverage stays partial whenever eligible windows exist. Increasing it can
 use more time and memory. Token/cost simulation coverage is separate and is not
 changed by this index budget.
 
