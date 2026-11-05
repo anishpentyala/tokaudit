@@ -174,13 +174,16 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
     for m in raw_messages:
         if not isinstance(m, dict):
             raise ValueError(f"record {rid}: message is not an object")
-        if m.get("role") in ("tool", "function"):
+        role = m.get("role", "user")
+        if not isinstance(role, str) or not role:
+            raise ValueError(f"record {rid}: message role must be a nonempty string")
+        if role in ("tool", "function"):
             raise ValueError(f"record {rid}: unsupported tool/function message role")
         for field in ("tool_calls", "function_call", "tool_call_id"):
             if m.get(field) not in (None, [], {}):
                 raise ValueError(f"record {rid}: unsupported {field} message payload")
         messages.append(
-            Message(role=str(m.get("role", "user")), text=_content_to_text(m.get("content")))
+            Message(role=role, text=_content_to_text(m.get("content")))
         )
         if _breakpoint_marked(m.get("content")):
             breakpoints.append(len(messages) - 1)

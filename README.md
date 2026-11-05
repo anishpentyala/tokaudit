@@ -650,3 +650,19 @@ This does not change the accepted count formats within an object, unknown
 usage-key handling or the gateway adapters' existing policy for malformed
 optional provider-specific usage fields. Missing and null usage remain unknown,
 not zero; an empty object still contributes no comparable reported fields.
+
+### Message role identity
+
+An explicitly supplied message `role` must now be a nonempty string.
+Numbers, booleans, null, arrays, objects and empty strings stop ingestion
+instead of being converted into canonical role text. For example, a null
+role must not silently share cache identity with the literal string `"None"`.
+The new shape error omits the malformed role value; record IDs still appear
+in normal input diagnostics.
+
+An omitted role keeps the existing `user` default. Nonempty custom string
+roles retain their exact spelling, without whitespace/case normalization or
+a new provider-specific role allowlist. Existing tool/function-role rejection
+is unchanged. This applies to message lists carried by the supported gateway
+adapters too. A mixed log stops at the invalid row before publishing a report;
+this is still a text-only audit, not complete provider request validation.
