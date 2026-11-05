@@ -76,9 +76,9 @@ and Helicone request bodies used for analysis. Even equal repeated values are
 ambiguous input, not evidence to choose a winner. Errors identify the physical
 log line without printing the repeated name or its values. Repeated names in
 separate objects and duplicate-looking text in plain prompts remain valid.
-This log-input check does not validate duplicate members in price sheets,
-and dictionary-based Python APIs cannot recover members already discarded by
-an earlier parser.
+Price sheets also reject duplicate decoded JSON object members at any depth,
+including equal-valued duplicates. Dictionary-based Python APIs cannot recover
+members already discarded by an earlier parser.
 
 A clean integrity result requires accounting coverage. Empty files, unrelated
 JSON, request-only rows, paginated envelopes and rows with no supported
@@ -260,7 +260,8 @@ numeric strings and zero rates remain supported.
 `--prices SHEET.json` adds dollar figures from your own price sheet -
 `{"models": {"gpt-6-astra": {"input": 10.0, "cached_input": 1.0,
 "cache_write": 12.5}}}` (per 1M tokens). No prices ship with tokaudit;
-sheets fail closed on unknown keys, missing or negative rates, and
+sheets fail closed on duplicate JSON object members, excessively nested JSON,
+unknown keys, missing or negative rates, and
 requests whose model is absent from the sheet are excluded from dollar
 totals. Each simulated request retains its own model for pricing, even
 when request IDs repeat across models or timestamps reorder the log. Legacy
