@@ -26,6 +26,11 @@ class DuplicateBlock:
     token_count: int
     occurrences: List[Tuple[str, int]]  # (request id, message index)
     preview: str
+    request_indices: List[int] = field(default_factory=list)
+
+    @property
+    def distinct_requests(self) -> int:
+        return len(set(self.request_indices)) if self.request_indices else len({rid for rid, _ in self.occurrences})
 
     @property
     def repeated_tokens(self) -> int:
@@ -116,7 +121,7 @@ def analyze_duplicates(
             continue
         r0, m0, s0 = occs[0]
         toks0 = tokenized[r0][m0]
-        good: List[Tuple[str, int, int]] = []  # (rid, midx, length)
+        good: List[Tuple[int, int, int]] = []  # (request position, midx, length)
         seen_occ = set()
         for ridx, midx, start in occs:
             if (ridx, midx) in seen_occ:
@@ -141,17 +146,18 @@ def analyze_duplicates(
                 if len(runs) > 4096:
                     runs.popitem(last=False)
             if length >= min_tokens:
-                good.append((requests[ridx].rid, midx, length))
+                good.append((ridx, midx, length))
         if len({g[0] for g in good}) < 2:
             continue
         min_len = min(g[2] for g in good)
-        occurrences = [(rid, midx) for rid, midx, _ in good]
+        occurrences = [(requests[ridx].rid, midx) for ridx, midx, _ in good]
         text = requests[r0].messages[m0].text.strip().replace("\n", " ")
         blocks.append(
             DuplicateBlock(
                 token_count=min_len,
                 occurrences=occurrences,
                 preview=text[:100] + ("..." if len(text) > 100 else ""),
+                request_indices=[ridx for ridx, _, _ in good],
             )
         )
 
@@ -161,7 +167,8 @@ def analyze_duplicates(
     accepted: List[DuplicateBlock] = []
     accepted_sets: List[set] = []
     for b in blocks:
-        occ_set = set(b.occurrences)
+        occ_set = (set(zip(b.request_indices, (midx for _, midx in b.occurrences)))
+                   if b.request_indices else set(b.occurrences))
         if any(occ_set <= prev for prev in accepted_sets):
             continue
         accepted.append(b)
