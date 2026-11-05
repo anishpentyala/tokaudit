@@ -120,8 +120,10 @@ def _parse_actual_usage(value: Any, rid: str) -> Optional[Dict[str, int]]:
     Integral floats and base-10 integer strings remain supported for exported
     formats. Missing optional usage is distinct from malformed present data.
     """
-    if not isinstance(value, dict):
+    if value is None:
         return None
+    if not isinstance(value, dict):
+        raise ValueError(f"record {rid}: actual_usage must be an object or null")
     usage: Dict[str, int] = {}
     for k, v in value.items():
         try:
