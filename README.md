@@ -513,3 +513,21 @@ minimum100, had three-paired-run median duplicate-search time0.594s on the prior
 code and0.00968s with verified-run reuse, with identical blocks and coverage.
 This excludes tokenization/CLI startup and is not a general benchmark or a
 provider-billing saving.
+
+### Duplicate content and repeated request IDs
+
+Duplicate search identifies request records by their position in the supplied
+request list, not by the exported ID label. Separate records with equal or empty
+IDs can contain real repeated content; their labels no longer hide those blocks
+or collapse separate blocks during suppression. Repeated log rows can also be
+retry emissions or duplicated exports, so detection does not prove separate
+provider calls or billed waste.
+
+Each JSON duplicate block includes `request_indices`, aligned one-for-one with
+its message occurrences, and `distinct_requests`. Indices are zero-based in the
+provider group's input list (or the Python caller's list), not physical JSONL
+line numbers and not global cross-provider indices. `requests` remains the
+sorted set of ID labels. Markdown separates message occurrences from distinct
+request records. Repeated-token volume still counts message occurrences; it is
+not a separate-request or billing estimate. Manually constructed legacy
+`DuplicateBlock` values without indices retain an ID-based count fallback.
