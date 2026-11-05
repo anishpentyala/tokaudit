@@ -29,7 +29,7 @@ import json
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .adapters import adapt
 
@@ -49,7 +49,7 @@ class Request:
     provider: str
     messages: List[Message]
     breakpoints: List[int] = field(default_factory=list)
-    ts: Optional[float] = None
+    ts: Optional[Union[int, float]] = None
     session_id: Optional[str] = None
     cache_key: Optional[str] = None
     # Provider-reported token usage when the source export includes it
@@ -60,17 +60,22 @@ class Request:
         return "\n".join(f"<{m.role}>\n{m.text}" for m in self.messages)
 
 
-def _parse_ts(value: Any) -> Optional[float]:
-    if value is None:
+def _parse_ts(value: Any) -> Optional[Union[int, float]]:
+    if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
         # json.loads accepts the non-standard NaN/Infinity literals; a
         # non-finite timestamp must not enter TTL arithmetic (NaN
         # comparisons are silently False), so treat it like an
         # unparseable string: no timestamp, conservative ordering.
-        if not math.isfinite(value):
-            return None
-        return float(value)
+        try:
+            if not math.isfinite(value):
+                return None
+        except OverflowError:
+            return None  # keep the finite-float-range timestamp input contract
+        # Integer epoch seconds must reach exact TTL arithmetic unrounded.
+        # Converting here can collapse distinct seconds before simulation.
+        return value
     if isinstance(value, str):
         try:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
