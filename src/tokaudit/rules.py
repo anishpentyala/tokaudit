@@ -12,9 +12,13 @@ valid as dollar prices change.
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+
+from .jsoninput import DuplicateJSONMember, unique_object
 
 _DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "providers.json")
 
@@ -136,33 +140,92 @@ class Ruleset:
         return self.providers[name]
 
 
+def _count(value, label):
+    # Keep integral floats and decimal integer strings used by older custom
+    # policies, but never truncate fractions or treat booleans as counts.
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be a finite non-negative integer")
+    if isinstance(value, str):
+        if not re.fullmatch(r"[+-]?[0-9]+", value.strip()):
+            raise ValueError(f"{label} must be a finite non-negative integer")
+    elif not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a finite non-negative integer")
+    try:
+        number = float(value)
+        count = int(value)
+    except (ValueError, OverflowError):
+        raise ValueError(f"{label} must be a finite non-negative integer") from None
+    if count < 0:
+        raise ValueError(f"{label} must be non-negative")
+    if not math.isfinite(number) or (not isinstance(value, str) and value != count):
+        raise ValueError(f"{label} must be a finite non-negative integer")
+    return count
+
+
+def _multiplier(value, label):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError(f"{label} must be finite and non-negative")
+    try:
+        number = float(value)
+    except (ValueError, OverflowError):
+        raise ValueError(f"{label} must be finite and non-negative") from None
+    if not math.isfinite(number) or number < 0:
+        raise ValueError(f"{label} must be finite and non-negative")
+    return number
+
+
+def _flag(value, label):
+    if type(value) is not bool:
+        raise ValueError(f"{label} must be boolean")
+    return value
+
+
+def _strings(value, label):
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{label} must be a list of strings")
+    return list(value)
+
+
 def _provider_from_dict(name: str, d: dict) -> ProviderRules:
+    counts = {key: _count(d.get(key, default), key) for key, default in (
+        ("min_prefix_tokens", 1024), ("ttl_seconds", 300), ("max_explicit_breakpoints", 4)
+    )}
+    multipliers = {key: _multiplier(d.get(key, default), key) for key, default in (
+        ("write_multiplier", 1.25), ("read_multiplier", 0.1)
+    )}
+    minimums = d.get("model_minimums", {})
+    if not isinstance(minimums, dict):
+        raise ValueError("model_minimums must be an object")
+    families = d.get("families", {})
+    if not isinstance(families, dict):
+        raise ValueError("families must be an object")
+    parsed_families = {}
+    for fname, fdata in families.items():
+        label = f"family '{fname}'"
+        if not isinstance(fdata, dict):
+            raise ValueError(f"{label} must be an object")
+        parsed_families[fname] = FamilyRules(
+            name=fname,
+            min_prefix_tokens=_count(fdata.get("min_prefix_tokens", counts["min_prefix_tokens"]),
+                                     f"{label}: min_prefix_tokens"),
+            ttl_seconds=_count(fdata.get("ttl_seconds", counts["ttl_seconds"]), f"{label}: ttl_seconds"),
+            write_multiplier=_multiplier(fdata.get("write_multiplier", multipliers["write_multiplier"]),
+                                         f"{label}: write_multiplier"),
+            read_multiplier=_multiplier(fdata.get("read_multiplier", multipliers["read_multiplier"]),
+                                        f"{label}: read_multiplier"),
+            match=[x.lower() for x in _strings(fdata.get("match", []), f"{label}: match")],
+            savings_supported=_flag(fdata.get("savings_supported", True), f"{label}: savings_supported"),
+            notes=_strings(fdata.get("notes", []), f"{label}: notes"),
+        )
+    refresh = d.get("read_refresh_seconds")
     return ProviderRules(
-        name=name,
-        min_prefix_tokens=int(d.get("min_prefix_tokens", 1024)),
-        ttl_seconds=int(d.get("ttl_seconds", 300)),
-        write_multiplier=float(d.get("write_multiplier", 1.25)),
-        read_multiplier=float(d.get("read_multiplier", 0.1)),
-        refresh_on_read=bool(d.get("refresh_on_read", False)),
-        enabled_by_default=bool(d.get("enabled_by_default", False)),
-        max_explicit_breakpoints=int(d.get("max_explicit_breakpoints", 4)),
-        read_refresh_seconds=(int(d["read_refresh_seconds"])
-                              if d.get("read_refresh_seconds") is not None else None),
-        model_minimums={str(k).lower(): int(v) for k, v in d.get("model_minimums", {}).items()},
-        families={
-            fname: FamilyRules(
-                name=fname,
-                min_prefix_tokens=int(fdata.get("min_prefix_tokens", d.get("min_prefix_tokens", 1024))),
-                ttl_seconds=int(fdata.get("ttl_seconds", d.get("ttl_seconds", 300))),
-                write_multiplier=float(fdata.get("write_multiplier", d.get("write_multiplier", 1.25))),
-                read_multiplier=float(fdata.get("read_multiplier", d.get("read_multiplier", 0.1))),
-                match=[str(x).lower() for x in fdata.get("match", [])],
-                savings_supported=bool(fdata.get("savings_supported", True)),
-                notes=[str(n) for n in fdata.get("notes", [])],
-            )
-            for fname, fdata in d.get("families", {}).items()
-        },
-        notes=[str(n) for n in d.get("notes", [])],
+        name=name, **counts, **multipliers,
+        refresh_on_read=_flag(d.get("refresh_on_read", False), "refresh_on_read"),
+        enabled_by_default=_flag(d.get("enabled_by_default", False), "enabled_by_default"),
+        read_refresh_seconds=None if refresh is None else _count(refresh, "read_refresh_seconds"),
+        model_minimums={k.lower(): _count(v, "model_minimums") for k, v in minimums.items()},
+        families=parsed_families,
+        notes=_strings(d.get("notes", []), "notes"),
     )
 
 
@@ -170,9 +233,11 @@ def load_rules(path: Optional[str] = None) -> Ruleset:
     use_path = path or _DEFAULT_PATH
     try:
         with open(use_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
+            data = json.load(fh, object_pairs_hook=unique_object)
     except FileNotFoundError:
         raise SystemExit(f"rules file not found: {use_path}")
+    except DuplicateJSONMember:
+        raise SystemExit(f"rules file {use_path}: duplicate JSON object member") from None
     except json.JSONDecodeError as exc:
         raise SystemExit(f"rules file {use_path}: invalid JSON: {exc}")
     if not isinstance(data, dict) or not isinstance(data.get("providers"), dict):
@@ -187,23 +252,14 @@ def load_rules(path: Optional[str] = None) -> Ruleset:
             rules = _provider_from_dict(name, pdata)
         except (TypeError, ValueError) as exc:
             raise SystemExit(f"rules file {use_path}: provider '{name}': {exc}")
-        if rules.read_refresh_seconds is not None and rules.read_refresh_seconds < 0:
-            raise SystemExit(f"rules file {use_path}: provider '{name}': read_refresh_seconds must be non-negative")
-        for label, ttl, wm, rm in (
-            [("provider", rules.ttl_seconds, rules.write_multiplier, rules.read_multiplier)]
-            + [(f"family '{f.name}'", f.ttl_seconds, f.write_multiplier, f.read_multiplier)
-               for f in rules.families.values()]
-        ):
-            if ttl < 0 or wm < 0 or rm < 0:
-                raise SystemExit(
-                    f"rules file {use_path}: provider '{name}' {label}: "
-                    "ttl_seconds and multipliers must be non-negative"
-                )
         providers[name] = rules
     if not providers:
         raise SystemExit(f"rules file {use_path} defines no providers")
+    sources = data.get("sources", {})
+    if not isinstance(sources, dict) or not all(isinstance(v, str) for v in sources.values()):
+        raise SystemExit(f"rules file {use_path}: sources must be an object of strings")
     return Ruleset(
         as_of=str(data.get("as_of", "unknown")),
-        sources={str(k): str(v) for k, v in data.get("sources", {}).items()},
+        sources=dict(sources),
         providers=providers,
     )
