@@ -12,6 +12,8 @@ import json
 import math
 from typing import Dict, Optional
 
+from .jsoninput import DuplicateJSONMember, unique_object
+
 RATE_KEYS = ("input", "cached_input", "cache_write")
 TOP_KEYS = {"models", "as_of", "note"}
 
@@ -19,9 +21,13 @@ TOP_KEYS = {"models", "as_of", "note"}
 def load_price_sheet(path: str) -> Dict[str, Dict[str, float]]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
+            data = json.load(fh, object_pairs_hook=unique_object)
     except FileNotFoundError:
         raise SystemExit(f"price sheet not found: {path}")
+    except DuplicateJSONMember as exc:
+        raise SystemExit(f"price sheet {path}: {exc}")
+    except RecursionError:
+        raise SystemExit(f"price sheet {path}: JSON nested too deeply to parse")
     except json.JSONDecodeError as exc:
         raise SystemExit(f"price sheet {path}: invalid JSON: {exc}")
     if not isinstance(data, dict) or not isinstance(data.get("models"), dict):
