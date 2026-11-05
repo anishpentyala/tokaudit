@@ -63,12 +63,14 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
             group, encode,
             min_tokens=dup_min, shingle=max(dup_min // 3, 8), max_shingles=dup_max,
         )
-        reports.append(
-            build_report(group, sim, duplicate_search.blocks, ruleset, rules, backend.name,
+        try:
+            report = build_report(group, sim, duplicate_search.blocks, ruleset, rules, backend.name,
                          scenarios=scenarios, price_sheet=price_sheet,
                          price_source=prices_path, omit_content_previews=omit_previews,
                          duplicate_search=duplicate_search)
-        )
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
+        reports.append(report)
 
     if len(reports) == 1:
         combined = reports[0]
