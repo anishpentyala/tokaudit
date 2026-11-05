@@ -590,3 +590,19 @@ and top-N limit still apply. Many distinct continuations of one seed can require
 pairwise comparisons; the index budget is not a runtime or memory ceiling for
 tokenization or candidate processing. Coverage reports describe indexed
 windows, not proof that every duplicate block was returned.
+
+### Represented-number integrity arithmetic
+
+Integrity usage sums and explicit-cache gap explanations compare the accepted
+numbers exactly against the existing one-unit tolerance. JSON integers inside
+the existing finite-float-range input contract are no longer rounded to floats
+before addition/subtraction. Finite floats retain their represented binary
+values; this does not recover decimal digits already rounded by JSON decoding.
+Large finite sums cannot turn into infinity and hide a mismatch or print an
+infinite usage count. Integral usage diagnostics print exact integers.
+
+This does not change monetary comparisons, supported accounting shapes, token
+domain checks, cache-alias/schema assumptions, or the one-unit tolerance. It is
+still an offline consistency signal, not a billing audit or proof of a provider
+bug. Exact rational arithmetic adds some CPU work per numeric usage field;
+integers outside the existing finite-float-range contract remain findings.
