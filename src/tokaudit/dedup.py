@@ -14,6 +14,7 @@ returned.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Tuple
 
@@ -103,6 +104,11 @@ def analyze_duplicates(
                 groups.setdefault(seed, []).append((ridx, midx, start))
             yield from groups.values()
 
+    # A prior extension proves an equal run along this pair's alignment.
+    # Reuse only inside that run; its right edge is a known mismatch/end.
+    # Bound memo entries independently of the shingle index. Eviction only
+    # costs repeated comparisons, never changes the candidates or matches.
+    runs = OrderedDict()
     blocks: List[DuplicateBlock] = []
     for occs in exact_groups():
         req_ids = {o[0] for o in occs}
@@ -117,13 +123,23 @@ def analyze_duplicates(
                 continue
             seen_occ.add((ridx, midx))
             toks = tokenized[ridx][midx]
-            length = shingle
-            while (
-                s0 + length < len(toks0)
-                and start + length < len(toks)
-                and toks0[s0 + length] == toks[start + length]
-            ):
-                length += 1
+            alignment = (r0, m0, ridx, midx, start - s0)
+            run = runs.get(alignment)
+            if run is not None and run[0] <= s0 and s0 + shingle <= run[1]:
+                length = run[1] - s0
+                runs.move_to_end(alignment)
+            else:
+                length = shingle
+                while (
+                    s0 + length < len(toks0)
+                    and start + length < len(toks)
+                    and toks0[s0 + length] == toks[start + length]
+                ):
+                    length += 1
+                runs[alignment] = (s0, s0 + length)
+                runs.move_to_end(alignment)
+                if len(runs) > 4096:
+                    runs.popitem(last=False)
             if length >= min_tokens:
                 good.append((requests[ridx].rid, midx, length))
         if len({g[0] for g in good}) < 2:

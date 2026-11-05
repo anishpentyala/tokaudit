@@ -499,3 +499,17 @@ three paired runs had median simulation/scenario time 0.261s without reuse and
 0.156s with reuse. This excludes CLI startup, parsing and duplicate search. It is
 not a general benchmark, provider billing saving or quality claim. Eviction can
 require re-encoding and does not change the resulting token IDs or reports.
+
+Duplicate extension reuses already verified equal token runs along the same
+message-pair alignment instead of comparing every overlapping suffix again.
+The local memo holds at most 4,096 alignments; eviction only repeats work.
+Candidate windows still require exact token equality, including hash-collision
+controls. Detection, greedy suppression, top-block selection and index coverage
+are unchanged. The memo limit is not a total analysis-memory bound, and short or
+mostly unique inputs can cost extra work.
+
+A synthetic local check of three identical 2,000-token messages, shingle size20,
+minimum100, had three-paired-run median duplicate-search time0.594s on the prior
+code and0.00968s with verified-run reuse, with identical blocks and coverage.
+This excludes tokenization/CLI startup and is not a general benchmark or a
+provider-billing saving.
