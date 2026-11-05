@@ -480,3 +480,22 @@ return for compatibility. Both accept positive integer `min_tokens`, `shingle`
 and `top`, plus non-negative integer `max_shingles` (zero indexes no windows).
 Invalid limits fail instead of silently disabling detection or returning a
 misleading partial list. The CLI requires a positive `--dup-min-tokens` value.
+
+### Tokenization reuse during analysis
+
+One CLI `analyze` invocation reuses exact-text tokenizations across simulation,
+what-if scenarios and duplicate search. The local LRU retains at most 128
+entries, 100,000 token IDs and 1,000,000 text characters. Oversize entries bypass
+it without evicting smaller reusable entries. Retained tokens are immutable and
+returned lists are independent, so a consumer cannot change later tokenizations.
+The cache disappears after that analysis; tokenization backends and reports are
+unchanged. Standalone Python simulation/dedup APIs are not automatically cached.
+
+These limits bound retained cache contents, not the whole analysis's memory or
+peak allocations. Cold or mostly unique workloads can cost extra time and
+memory. A synthetic local exact-tokenizer check with 100 requests, one shared
+system message and three what-if passes reduced backend calls from 800 to 401;
+three paired runs had median simulation/scenario time 0.261s without reuse and
+0.156s with reuse. This excludes CLI startup, parsing and duplicate search. It is
+not a general benchmark, provider billing saving or quality claim. Eviction can
+require re-encoding and does not change the resulting token IDs or reports.
