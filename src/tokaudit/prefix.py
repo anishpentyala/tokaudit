@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from array import array
 from dataclasses import dataclass, field
+from fractions import Fraction
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from .logs import Request
@@ -126,7 +127,7 @@ def simulate(
     # that can overstate reuse when a log mixes accounts. --isolate-sessions
     # is an explicit conservative scenario (not provider semantics) that also
     # partitions by the app's session_id.
-    caches: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, float]] = {}
+    caches: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, Union[float, Fraction]]] = {}
     read_marks: Dict[Tuple[str, Optional[str], Optional[str]], Dict[Tuple[PrefixKey, int], bool]] = {}
     generations: Dict[Tuple[str, Optional[str], Optional[str]], Dict[PrefixKey, int]] = {}
     written_marks: Dict[int, List[Tuple[PrefixKey, int]]] = {}  # request index -> boundary keys written
@@ -135,7 +136,10 @@ def simulate(
     charged_delta: List[Tuple[int, int]] = []  # (request index, charged delta tokens)
 
     for i, req in enumerate(ordered):
-        ts = req.ts if req.ts is not None else float(i)
+        # A finite timestamp plus TTL can round up (false hit), down (false
+        # miss), or overflow. Compare exact represented times internally.
+        ts = (Fraction(req.ts) if not no_ts else
+              req.ts if req.ts is not None else float(i))
         if force_family is not None:
             fam = rules.families[force_family]
             fam_assumed = False
@@ -155,7 +159,7 @@ def simulate(
             if note not in family_note_added:
                 family_note_added.add(note)
                 assumed_notes.append(f"[{fam.name}] {note}")
-        ttl = float("inf") if no_ts else float(fam.ttl_seconds)
+        ttl = float("inf") if no_ts else Fraction(fam.ttl_seconds)
         # Family minimum is the base; a provider-level per-model minimum
         # (e.g. Anthropic's model table) overrides it when it matches.
         min_pref = fam.min_prefix_tokens
@@ -192,7 +196,8 @@ def simulate(
                 read_tokens = b
                 hash_read[(h, cache_generations[h])] = True
                 if rules.refresh_on_read:
-                    refresh = ttl if rules.read_refresh_seconds is None else rules.read_refresh_seconds
+                    refresh = ttl if rules.read_refresh_seconds is None else (
+                        rules.read_refresh_seconds if no_ts else Fraction(rules.read_refresh_seconds))
                     cache[h] = max(expiry, ts + refresh)
                 break
 
