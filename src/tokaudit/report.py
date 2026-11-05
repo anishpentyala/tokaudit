@@ -46,6 +46,9 @@ def build_report(
             priced["priced_requests"] += 1
             priced["baseline_usd"] += cost_usd(cst.total_input, 0, 0, rates)
             priced["simulated_usd"] += cost_usd(cst.uncached, cst.read, cst.written, rates)
+        import math
+        if not all(math.isfinite(priced[key]) for key in ("baseline_usd", "simulated_usd")):
+            raise ValueError("simulated price aggregate exceeds finite dollar range")
         pricing = {
             "source": price_source,
             "baseline_usd": round(priced["baseline_usd"], 4),

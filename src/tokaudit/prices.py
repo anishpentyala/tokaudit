@@ -83,8 +83,25 @@ def load_price_sheet(path: str) -> Dict[str, Dict[str, float]]:
 def cost_usd(uncached: int, read: int, written: int,
              rates: Dict[str, float]) -> float:
     """Dollars for one request's token flows, rates per 1M tokens."""
-    return (
-        uncached * rates["input"]
-        + read * rates["cached_input"]
-        + written * rates["cache_write"]
-    ) / 1_000_000.0
+    try:
+        result = (
+            uncached * rates["input"]
+            + read * rates["cached_input"]
+            + written * rates["cache_write"]
+        ) / 1_000_000.0
+    except OverflowError:
+        result = float("inf")
+    if math.isfinite(result):
+        return result
+    # Multiplication can overflow before the per-million division even when
+    # the final cost fits. Use exact arithmetic only on this rare path.
+    from fractions import Fraction
+    exact = sum(Fraction(count) * Fraction(rates[key]) for count, key in (
+        (uncached, "input"), (read, "cached_input"), (written, "cache_write"))) / 1_000_000
+    try:
+        result = float(exact)
+    except OverflowError as error:
+        raise ValueError("simulated price exceeds finite dollar range") from error
+    if not math.isfinite(result):
+        raise ValueError("simulated price exceeds finite dollar range")
+    return result
