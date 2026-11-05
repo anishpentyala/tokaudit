@@ -606,3 +606,17 @@ domain checks, cache-alias/schema assumptions, or the one-unit tolerance. It is
 still an offline consistency signal, not a billing audit or proof of a provider
 bug. Exact rational arithmetic adds some CPU work per numeric usage field;
 integers outside the existing finite-float-range contract remain findings.
+
+### Exact represented cache deadlines
+
+Finite timestamp/TTL deadlines in the cache simulator use exact arithmetic over
+the represented input numbers. Adding a short lifetime to a large epoch can no
+longer round the expiry upward and create a false hit at the next representable
+timestamp. Refresh deadlines use the same arithmetic and still never shorten
+existing coverage. Exact expiry remains inclusive, as in the existing model.
+
+This does not recover timestamp precision lost when input JSON was decoded,
+change provider policies or claim real cache hits. Logs with any missing
+timestamp retain the documented no-expiry scenario. Rational deadline arithmetic
+adds some CPU work; prompt tokenization, pricing and canonical rendering are
+unchanged. Direct Python callers must still supply finite timestamps.
