@@ -566,3 +566,12 @@ prices retain the existing arithmetic and rounding; tiny-value underflow and
 float rounding are not eliminated. API cost helpers raise ValueError for
 unrepresentable results; the CLI reports a clean error and leaves output
 files untouched. No rates are clipped or replaced.
+
+The `dense` timing scenario rebases compressed timestamps to zero before
+simulation. Its relative time ratios use exact arithmetic before conversion
+back to bounded float seconds, so even finite epoch endpoints whose difference
+overflows a float cannot create NaN timestamps or lose the intended reuse.
+Original request timestamps are unchanged. Compressed times still have float
+resolution: distinct interior times can coincide after rounding. This remains
+a hypothetical timing scenario, not a promise about provider routing or safe
+rescheduling of dependent requests.
