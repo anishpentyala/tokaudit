@@ -620,3 +620,20 @@ change provider policies or claim real cache hits. Logs with any missing
 timestamp retain the documented no-expiry scenario. Rational deadline arithmetic
 adds some CPU work; prompt tokenization, pricing and canonical rendering are
 unchanged. Direct Python callers must still supply finite timestamps.
+
+### Integer timestamp ingestion
+
+JSON integer epoch-second timestamps now remain integers through log ingestion,
+including the plain `ts`/`timestamp`/`created` fields and timestamps carried by the
+supported LiteLLM, Langfuse and Helicone adapters. Converting them to float first
+could collapse distinct seconds or widen a gap before the existing exact cache
+TTL comparison ran, creating a false hit or miss at large epochs.
+
+Ordinary floats and ISO timestamps keep their existing representation. Values
+already rounded by a producer or JSON float decoding cannot be recovered here.
+Boolean timestamps and integers outside the finite float range are treated as
+missing, like other unsupported timestamps, rather than used as epoch seconds
+or allowed to crash ingestion. The existing missing-timestamp policy remains:
+if any request lacks a usable timestamp, cache expiry is disabled for that
+simulation and the report notes it. This remains an approximate cache model,
+not an observed provider billing result.
