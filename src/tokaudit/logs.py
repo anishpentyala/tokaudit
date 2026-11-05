@@ -25,12 +25,15 @@ requests from the same workload are preserved.
 from __future__ import annotations
 
 import json
+
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .adapters import adapt
+
+from .jsoninput import DuplicateJSONMember, unique_object
 
 
 @dataclass
@@ -206,7 +209,9 @@ def load_log(path: str) -> List[Request]:
                 if not line:
                     continue
                 try:
-                    obj = json.loads(line)
+                    obj = json.loads(line, object_pairs_hook=unique_object)
+                except DuplicateJSONMember as exc:
+                    raise SystemExit(f"{path}:{idx + 1}: {exc}")
                 except json.JSONDecodeError as exc:
                     raise SystemExit(f"{path}:{idx + 1}: invalid JSON: {exc}")
                 except RecursionError:
