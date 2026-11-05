@@ -551,3 +551,12 @@ The exact tokenizer treats literal special-token spellings in exported prompt
 text (for example `<|endoftext|>`) as ordinary text, rather than rejecting
 the log or inserting model-control token IDs. Counts still describe the
 canonical text render, not a provider's hidden chat-template control tokens.
+
+Dollar arithmetic rejects costs or group totals outside finite floating-point
+range before report output, rather than emitting Infinity/NaN dollar figures.
+A rare exact-arithmetic fallback handles intermediate multiplication overflow
+when the final per-million-token result remains representable. Ordinary
+prices retain the existing arithmetic and rounding; tiny-value underflow and
+float rounding are not eliminated. API cost helpers raise ValueError for
+unrepresentable results; the CLI reports a clean error and leaves output
+files untouched. No rates are clipped or replaced.
