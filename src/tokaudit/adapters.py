@@ -71,8 +71,8 @@ _LF_CACHE_READ_KEYS = ("input_cache_read", "cache_read_input_tokens",
                        "input_cached_tokens")
 _LF_CACHE_WRITE_KEYS = ("input_cache_creation", "cache_write_tokens",
                         "input_cache_write_tokens",
-                        "cache_creation_input_tokens",
-                        "input_cache_creation_5m", "input_cache_creation_1h")
+                        "cache_creation_input_tokens")
+_LF_CACHE_TTL_KEYS = ("input_cache_creation_5m", "input_cache_creation_1h")
 
 
 def _max_present(details: Dict[str, Any], keys) -> Optional[int]:
@@ -84,6 +84,45 @@ def _max_present(details: Dict[str, Any], keys) -> Optional[int]:
         if isinstance(v, int) and v >= 0:
             vals.append(v)
     return max(vals) if vals else None
+
+
+
+def _langfuse_usage(details: Dict[str, Any]) -> Dict[str, int]:
+    """Recover inclusive text-input usage from Langfuse's exclusive buckets.
+
+    Aliases within one family retain the existing max policy. Duration-specific
+    writes are separate buckets: normalized generic writes are a remainder,
+    not a total. Never invent missing ordinary input or unknown input types.
+    """
+    read = _max_present(details, _LF_CACHE_READ_KEYS)
+    writes = _max_present(details, _LF_CACHE_WRITE_KEYS)
+    ttl_present = [key for key in _LF_CACHE_TTL_KEYS if key in details]
+    write_present = [key for key in _LF_CACHE_WRITE_KEYS + _LF_CACHE_TTL_KEYS
+                     if key in details]
+    writes_valid = all(type(details[key]) is int and details[key] >= 0
+                       for key in write_present)
+    if ttl_present:
+        writes = (sum(details[key] for key in ttl_present) + (writes or 0)
+                  if writes_valid else None)
+    elif not writes_valid:
+        writes = None
+    usage = {}
+    if read is not None:
+        usage["cache_read_tokens"] = read
+    if writes is not None:
+        usage["cache_write_tokens"] = writes
+    input_keys = ("input", "input_tokens")
+    known = set(input_keys + _LF_CACHE_READ_KEYS + _LF_CACHE_WRITE_KEYS
+                + _LF_CACHE_TTL_KEYS)
+    present = [key for key in known if key in details]
+    valid = all(type(details[key]) is int and details[key] >= 0
+                for key in present)
+    unsupported = any(key.startswith("input_") and key not in known
+                      for key in details)
+    ordinary = _max_present(details, input_keys)
+    if ordinary is not None and valid and not unsupported:
+        usage["prompt_tokens"] = ordinary + (read or 0) + (writes or 0)
+    return usage
 
 
 def _is_langfuse_observation(obj: Dict[str, Any]) -> bool:
@@ -238,20 +277,10 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             )
         # Provider-reported usage from usageDetails. Key families pinned by
         # Langfuse's own provider-usage-key matrix (see module docstring).
-        # Aliases in one bucket name the same semantic quantity, so take the
-        # max across present aliases instead of summing (no double count).
+        # Aliases use max; distinct exclusive buckets sum (see EVIDENCE.md).
         details = obj.get("usageDetails") or obj.get("usage_details")
         if isinstance(details, dict):
-            read = _max_present(details, _LF_CACHE_READ_KEYS)
-            written = _max_present(details, _LF_CACHE_WRITE_KEYS)
-            prompt = _max_present(details, ("input", "input_tokens"))
-            usage = {}
-            if prompt is not None:
-                usage["prompt_tokens"] = prompt
-            if read is not None:
-                usage["cache_read_tokens"] = read
-            if written is not None:
-                usage["cache_write_tokens"] = written
+            usage = _langfuse_usage(details)
             if usage:
                 out["actual_usage"] = usage
         return {k: v for k, v in out.items() if v is not None}

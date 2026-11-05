@@ -132,3 +132,34 @@ Source: https://platform.openai.com/docs/guides/prompt-caching
 The simulator now models the read duration separately from the write lifetime:
 `max(existing_expiry, read_time + 1800)`. The `openai-12h` what-if changes
 write lifetime and price, not the 30-minute read-refresh duration.
+
+
+## Langfuse exclusive text/cache buckets (rechecked 2026-11-05)
+
+Source: https://langfuse.com/docs/observability/features/token-and-cost-tracking
+
+> "Langfuse treats every key in `usage_details` as a separate, non-overlapping bucket: each token must be counted in exactly one key."
+
+> "`input` excludes any `input_*` values (such as `input_cached_tokens`)"
+
+> "Flat `usage_details` / `usageDetails`, including `langfuse.observation.usage_details` | Stored unchanged; values must already be exclusive"
+
+The documented OpenAI example stores provider prompt_tokens 17,903 as input 86
+plus input_cached_tokens 17,817, with output 188 and total 18,091. Comparing
+Langfuse input 86 alone with simulated inclusive prompt usage is incorrect.
+
+Source: https://github.com/langfuse/langfuse/blob/main/packages/shared/src/server/otel/OtelIngestionProcessor.ts
+(fetched 2026-11-05, extractUsageDetails and Anthropic metadata handling)
+
+> "TTL breakdown of the cache-write total; only the unattributed remainder stays in input_cache_creation so each write is counted and priced once."
+
+The code sets input_cache_creation to max(total creation - 5m - 1h, 0),
+then stores input_cache_creation_5m and input_cache_creation_1h separately.
+Therefore the generic remainder and both TTL-specific buckets must be added,
+not max'd. The existing provider matrix's same-bucket alias handling remains
+max rather than sum; conflicting aliases are not validated by this adapter.
+The adapter does not guess custom units or unknown input_* modalities. Missing
+ordinary input or invalid recognized input/cache fields leave prompt coverage
+unknown; invalid recognized write fields leave write coverage unknown. It never
+uses total/output to backfill missing input. This is text/cache normalization,
+not a general inference of every possible Langfuse usage dimension.

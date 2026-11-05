@@ -12,7 +12,7 @@ def test_plain_input_retains_usage(input_value,details_key):
          'startTime':'2026-10-29T08:00:00Z','input':input_value,
          details_key:{'input':123,'input_cache_read':0,'cache_creation_input_tokens':20}}
     normalized=adapt(row)
-    assert normalized['actual_usage']=={'prompt_tokens':123,'cache_read_tokens':0,'cache_write_tokens':20}
+    assert normalized['actual_usage']=={'prompt_tokens':143,'cache_read_tokens':0,'cache_write_tokens':20}
     request=parse_record(normalized)
     assert request.actual_usage==normalized['actual_usage']
     expected='not json {' if input_value=='not json {' else 'plain policy text'

@@ -335,8 +335,14 @@ When an export carries real usage fields, the report adds a
 `prompt_tokens`, typed fields on HeliconeRequest), Langfuse
 `usageDetails` (cache key families pinned by Langfuse's own
 provider-usage-key matrix, excerpt in `rules/EVIDENCE.md`; aliases
-within one bucket are de-duplicated by taking the maximum, not the sum),
-and LiteLLM SpendLogs (`prompt_tokens` only). Reported usage is never
+within one bucket are de-duplicated by taking the maximum, not the sum).
+Langfuse stores exclusive buckets: ordinary input plus cache reads and writes
+are added to reconstruct inclusive prompt usage. Generic cache writes are a
+remainder and are added to the separate 5-minute and 1-hour write buckets.
+Missing ordinary input, invalid input/cache counts, or unrecognized `input_*`
+buckets leave prompt coverage unknown rather than reporting a partial total.
+This mapping covers standard text/cache token buckets, not arbitrary custom
+units or modality usage. LiteLLM SpendLogs exposes `prompt_tokens` only. Reported usage is never
 fed back into the simulation. Providers count with their own tokenizers
 and hidden context, so exact equality is not expected; large divergence
 is a signal to question log coverage or model assumptions.
