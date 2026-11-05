@@ -637,3 +637,16 @@ or allowed to crash ingestion. The existing missing-timestamp policy remains:
 if any request lacks a usable timestamp, cache expiry is disabled for that
 simulation and the report notes it. This remains an approximate cache model,
 not an observed provider billing result.
+
+### Present normalized usage must be an object
+
+A plain input record's `actual_usage` may be omitted, `null`, an empty object
+or an object of supported nonnegative integer counts. A present boolean,
+number, string or array now stops log ingestion with its physical line number
+instead of silently dropping that usage from report coverage. The shape error
+does not print the malformed value. No partial analysis report is produced.
+
+This does not change the accepted count formats within an object, unknown
+usage-key handling or the gateway adapters' existing policy for malformed
+optional provider-specific usage fields. Missing and null usage remain unknown,
+not zero; an empty object still contributes no comparable reported fields.
