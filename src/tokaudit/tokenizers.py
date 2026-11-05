@@ -108,10 +108,12 @@ class TiktokenBackend:
         self._enc = tiktoken.get_encoding(encoding_name)
 
     def encode(self, text: str) -> List[int]:
-        return self._enc.encode(text)
+        # Exported prompt text is data, never an instruction to insert model
+        # control IDs. Literal delimiter spellings use ordinary text tokens.
+        return self._enc.encode(text, disallowed_special=())
 
     def count(self, text: str) -> int:
-        return len(self._enc.encode(text))
+        return len(self.encode(text))
 
 
 class EstimatorBackend:
