@@ -16,7 +16,7 @@ from .prices import load_price_sheet
 from .report import build_report, to_markdown
 from .rules import load_rules
 from .config import load_config
-from .tokenizers import get_backend
+from .tokenizers import get_backend, _BoundedEncoder
 from .whatif import SCENARIOS, run_scenarios
 
 
@@ -40,6 +40,7 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     requests = load_log(args.log)
     ruleset = load_rules(rules_path)
     backend = get_backend(tokenizer)
+    encode = _BoundedEncoder(backend.encode)
 
     groups = defaultdict(list)
     for req in requests:
@@ -49,14 +50,14 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     reports = []
     for provider, group in sorted(groups.items()):
         rules = ruleset.for_provider(provider)
-        sim = simulate(group, backend.encode, rules, force_family=policy,
+        sim = simulate(group, encode, rules, force_family=policy,
                        isolate_sessions=isolate)
         scenarios = run_scenarios(
-            what_if or [], group, backend.encode, rules,
+            what_if or [], group, encode, rules,
             force_family=policy, isolate_sessions=isolate,
         )
         duplicate_search = analyze_duplicates(
-            group, backend.encode,
+            group, encode,
             min_tokens=dup_min, shingle=max(dup_min // 3, 8),
         )
         reports.append(
