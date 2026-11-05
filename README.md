@@ -457,3 +457,26 @@ excluded by simulation stay excluded. Markdown shows the first 20 comparable
 requests, with an explicit truncation note; JSON keeps every comparable row.
 Counts use different tokenizers/templates and are not evidence of misbilling.
 Rows expose request IDs and model names, even with content previews omitted.
+
+### Duplicate-search coverage
+
+Analysis reports `duplicate_search` in each provider group's JSON report and a
+shingle-index coverage line in Markdown: indexed windows, total eligible windows,
+the index budget (currently 500,000), and `index_complete`. Once the budget is
+used, later windows are not indexed. A capped search is labelled partial, even
+when it returns real blocks, and an empty result does not claim there are no
+duplicates in the unindexed portion.
+
+`index_complete` means every eligible token window entered the index. It does
+not mean every duplicate was discovered: extension, greedy suppression and the
+top-block limit remain heuristics. All messages are still tokenized and retained
+for comparison, so the index cap is not a total memory bound. Increasing it can
+use more time and memory. Token/cost simulation coverage is separate and is not
+changed by this index budget.
+
+Python callers can use `analyze_duplicates(...)` for a `DuplicateSearchResult`
+with `blocks` and these coverage fields. `find_duplicates(...)` keeps its list
+return for compatibility. Both accept positive integer `min_tokens`, `shingle`
+and `top`, plus non-negative integer `max_shingles` (zero indexes no windows).
+Invalid limits fail instead of silently disabling detection or returning a
+misleading partial list. The CLI requires a positive `--dup-min-tokens` value.

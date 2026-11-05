@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 from typing import Dict, List, Optional
 
-from .dedup import find_duplicates
+from .dedup import analyze_duplicates
 from .integrity import Finding, build_integrity_report
 from .logs import load_log
 from .prefix import simulate
@@ -28,6 +28,8 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     rules_path = args.rules if args.rules is not None else cfg.get("rules")
     policy = args.policy if args.policy is not None else cfg.get("policy")
     dup_min = args.dup_min_tokens if args.dup_min_tokens is not None else cfg.get("dup_min_tokens", 128)
+    if type(dup_min) is not int or dup_min < 1:
+        raise SystemExit("dup_min_tokens must be a positive integer")
     isolate = args.isolate_sessions or bool(cfg.get("isolate_sessions", False))
     what_if = args.what_if if args.what_if is not None else cfg.get("what_if")
     output = args.output if args.output is not None else cfg.get("output")
@@ -53,14 +55,15 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
             what_if or [], group, backend.encode, rules,
             force_family=policy, isolate_sessions=isolate,
         )
-        dups = find_duplicates(
+        duplicate_search = analyze_duplicates(
             group, backend.encode,
             min_tokens=dup_min, shingle=max(dup_min // 3, 8),
         )
         reports.append(
-            build_report(group, sim, dups, ruleset, rules, backend.name,
+            build_report(group, sim, duplicate_search.blocks, ruleset, rules, backend.name,
                          scenarios=scenarios, price_sheet=price_sheet,
-                         price_source=prices_path, omit_content_previews=omit_previews)
+                         price_source=prices_path, omit_content_previews=omit_previews,
+                         duplicate_search=duplicate_search)
         )
 
     if len(reports) == 1:
