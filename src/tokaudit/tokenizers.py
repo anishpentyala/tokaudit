@@ -177,3 +177,49 @@ def get_backend(name: str = "auto") -> object:
                     "use --tokenizer estimate or install tiktoken"
                 )
     return EstimatorBackend()
+
+
+class _BoundedEncoder:
+    """One analysis's LRU memo, bounded by entries, token IDs and text chars.
+
+    Results are stored as tuples and copied on return: downstream mutation
+    cannot poison later encodes. This is for deterministic built-in backends,
+    not arbitrary stateful encoders. Limits cover retained cache contents only.
+    """
+
+    def __init__(self, encode, max_entries=128, max_tokens=100_000,
+                 max_chars=1_000_000):
+        from collections import OrderedDict
+
+        for label, value in (("max_entries", max_entries),
+                             ("max_tokens", max_tokens), ("max_chars", max_chars)):
+            if type(value) is not int or value < 0:
+                raise ValueError(f"{label} must be a non-negative integer")
+        self._encode = encode
+        self._entries = OrderedDict()
+        self._max_entries = max_entries
+        self._max_tokens = max_tokens
+        self._max_chars = max_chars
+        self._tokens = 0
+        self._chars = 0
+
+    def __call__(self, text):
+        cached = self._entries.get(text)
+        if cached is not None:
+            self._entries.move_to_end(text)
+            return list(cached)
+        tokens = self._encode(text)
+        if (not self._max_entries or len(text) > self._max_chars
+                or len(tokens) > self._max_tokens):
+            return tokens
+        retained = tuple(tokens)
+        while self._entries and (len(self._entries) >= self._max_entries
+                                 or self._tokens + len(retained) > self._max_tokens
+                                 or self._chars + len(text) > self._max_chars):
+            key, value = self._entries.popitem(last=False)
+            self._tokens -= len(value)
+            self._chars -= len(key)
+        self._entries[text] = retained
+        self._tokens += len(retained)
+        self._chars += len(text)
+        return tokens
