@@ -76,7 +76,7 @@ and Helicone request bodies used for analysis. Even equal repeated values are
 ambiguous input, not evidence to choose a winner. Errors identify the physical
 log line without printing the repeated name or its values. Repeated names in
 separate objects and duplicate-looking text in plain prompts remain valid.
-This input check does not validate duplicate members in rules or price sheets,
+This log-input check does not validate duplicate members in price sheets,
 and dictionary-based Python APIs cannot recover members already discarded by
 an earlier parser.
 
@@ -392,6 +392,25 @@ only to the later of its existing expiry and 30 minutes after the read. The
 `openai-12h` what-if does not restart 12 hours on each hit. Custom provider rules
 can set `read_refresh_seconds`; omitting it keeps same-TTL refresh behavior.
 Regenerate earlier 12-hour what-if estimates, which could overstate savings.
+
+### Custom policy input validation
+
+Rules loaded from `--rules` (and the bundled rules file) reject repeated decoded
+JSON member names instead of keeping the last value. Counts and lifetimes must
+be non-negative integers representable as finite numbers; integral floats and
+base-10 integer strings are accepted for existing exports. Booleans are not
+counts. Cost multipliers must be finite and non-negative; finite numeric strings
+remain accepted. Policy flags require JSON `true` or `false`, not strings or
+numbers. An omitted or null `read_refresh_seconds` retains same-TTL refresh.
+Zero counts, lifetimes and multipliers remain supported custom parameters.
+
+Malformed family/minimum containers and non-string match/note lists stop with
+file and field guidance, before a report is written. An invalid override cannot
+silently truncate a TTL, turn the string `"false"` into enabled refresh, or
+introduce NaN cost arithmetic. This validates policy input, not whether custom
+rates match a provider contract. Unknown fields remain ignored for compatibility;
+constructed Python `ProviderRules` objects do not go through this file loader.
+No bundled provider values or simulation behavior for valid policies change.
 
 ### Reported token-count validation
 
