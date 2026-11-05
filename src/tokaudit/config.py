@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 
 KNOWN_KEYS = {
     "rules", "policy", "tokenizer", "provider", "format",
-    "dup_min_tokens", "isolate_sessions", "what_if", "output", "prices",
+    "dup_min_tokens", "dup_max_shingles", "isolate_sessions", "what_if", "output", "prices",
     "omit_content_previews",
 }
 
@@ -56,7 +56,11 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
         )
     out: Dict[str, Any] = {}
     for key, value in data.items():
-        if key == "dup_min_tokens":
+        if key == "dup_max_shingles":
+            if type(value) is not int or value < 0:
+                raise SystemExit(f"config file {path}: '{key}' must be a nonnegative integer")
+            out[key] = value
+        elif key == "dup_min_tokens":
             if type(value) is not int:
                 raise SystemExit(f"config file {path}: '{key}' must be an integer")
             out[key] = value
