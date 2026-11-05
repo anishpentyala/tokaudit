@@ -541,3 +541,8 @@ fields: refunds or credits may be negative. Provider-specific nested detail
 counts and Langfuse flat usage buckets (which may represent other units) are
 outside this check. Related issue links describe failure classes,
 not proof that an export has that upstream bug or was misbilled.
+
+The exact tokenizer treats literal special-token spellings in exported prompt
+text (for example `<|endoftext|>`) as ordinary text, rather than rejecting
+the log or inserting model-control token IDs. Counts still describe the
+canonical text render, not a provider's hidden chat-template control tokens.
