@@ -47,10 +47,13 @@ https://github.com/langfuse/langfuse/issues/.
 from __future__ import annotations
 
 import json
+
 import math
 from collections import Counter
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
+
+from .jsoninput import DuplicateJSONMember, unique_object
 
 LITELLM = "https://github.com/BerriAI/litellm/issues/"
 LANGFUSE = "https://github.com/langfuse/langfuse/issues/"
@@ -361,7 +364,9 @@ def build_integrity_report(path: str) -> Dict[str, Any]:
             if not line:
                 continue
             try:
-                obj = json.loads(line)
+                obj = json.loads(line, object_pairs_hook=unique_object)
+            except DuplicateJSONMember as exc:
+                raise SystemExit(f"{path}:{idx + 1}: {exc}")
             except json.JSONDecodeError as exc:
                 raise SystemExit(f"{path}:{idx + 1}: invalid JSON: {exc}")
             except RecursionError:

@@ -52,8 +52,11 @@ Grounding status (re-checked dates inline):
 from __future__ import annotations
 
 import json
+
 import math
 from typing import Any, Dict
+
+from .jsoninput import unique_object
 
 
 def _is_litellm_spendlog(obj: Dict[str, Any]) -> bool:
@@ -216,7 +219,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
         # JSON-serialized, so try to recover messages from a string first.
         if isinstance(inp, str):
             try:
-                inp = json.loads(inp)
+                inp = json.loads(inp, object_pairs_hook=unique_object)
             except (json.JSONDecodeError, TypeError):
                 pass  # Plain text still needs the common usage normalization.
         if isinstance(inp, list):
@@ -257,7 +260,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
         body = obj.get("request_body")
         if isinstance(body, str):
             try:
-                body = json.loads(body)
+                body = json.loads(body, object_pairs_hook=unique_object)
             except json.JSONDecodeError:
                 body = None
         out = {
