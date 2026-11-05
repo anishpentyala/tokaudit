@@ -70,6 +70,16 @@ shape; LiteLLM itself computed $0 and recorded why). On
 standard-logging-payload records, response_cost is read as the spend
 field. Offline; no request content is read.
 
+Analysis and integrity reject repeated decoded JSON member names in any raw
+log object, including nested objects and supported JSON-encoded Langfuse input
+and Helicone request bodies used for analysis. Even equal repeated values are
+ambiguous input, not evidence to choose a winner. Errors identify the physical
+log line without printing the repeated name or its values. Repeated names in
+separate objects and duplicate-looking text in plain prompts remain valid.
+This input check does not validate duplicate members in rules or price sheets,
+and dictionary-based Python APIs cannot recover members already discarded by
+an earlier parser.
+
 A clean integrity result requires accounting coverage. Empty files, unrelated
 JSON, request-only rows, paginated envelopes and rows with no supported
 accounting fields stop with file/line guidance before writing a report. Mixed
