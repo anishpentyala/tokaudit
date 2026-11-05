@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from .dedup import DuplicateBlock
+from .dedup import DuplicateBlock, DuplicateSearchResult
 from .logs import Request
 from .prefix import SimulationResult
 from .rules import ProviderRules, Ruleset
@@ -21,6 +21,7 @@ def build_report(
     price_sheet: Optional[Dict[str, Dict[str, float]]] = None,
     price_source: Optional[str] = None,
     omit_content_previews: bool = False,
+    duplicate_search: Optional[DuplicateSearchResult] = None,
 ) -> Dict:
     total_input = sum(c.total_input for c in sim.per_request)
     below_min = [
@@ -90,6 +91,16 @@ def build_report(
             }
             for d in dups
         ],
+        **({"duplicate_search": {
+            "indexed_shingles": duplicate_search.indexed_shingles,
+            "eligible_shingles": duplicate_search.eligible_shingles,
+            "max_shingles": duplicate_search.max_shingles,
+            "index_complete": duplicate_search.index_complete,
+            "note": ("Coverage describes indexed token windows, not exhaustive duplicate "
+                     "discovery or total memory use. Detection is heuristic and returns "
+                     "only the top blocks after suppression. A capped index can miss "
+                     "later requests; all messages are still tokenized."),
+        }} if duplicate_search is not None else {}),
         "skipped_unverified_policy": [
             {"id": rid, "model": model, "reason": reason} for rid, model, reason in sim.skipped
         ],
@@ -260,6 +271,12 @@ def to_markdown(report: Dict) -> str:
     lines += ["", "## Duplicate content across requests", ""]
     if report["assumptions"].get("content_previews_omitted"):
         lines.append("Content previews omitted. IDs, metadata and aggregate statistics remain; this is not anonymization.")
+    coverage = report.get("duplicate_search")
+    if coverage is not None:
+        state = "complete" if coverage["index_complete"] else "CAPPED - partial search"
+        lines.append(f"Shingle index: {coverage['indexed_shingles']:,} / "
+                     f"{coverage['eligible_shingles']:,} eligible windows ({state}).")
+        lines.append(coverage["note"])
     if report["duplicate_blocks"]:
         for d in report["duplicate_blocks"]:
             lines.append(
@@ -268,7 +285,12 @@ def to_markdown(report: Dict) -> str:
                 + (f": \"{d['preview']}\"" if 'preview' in d else ": content preview omitted")
             )
     else:
-        lines.append("No repeated blocks above the detection threshold.")
+        if coverage is not None and not coverage["index_complete"]:
+            lines.append("No repeated blocks found in the indexed subset; "
+                         "unindexed windows may contain duplicates.")
+        else:
+            lines.append("No repeated blocks found above the detection threshold "
+                         "by the heuristic search.")
     if report["what_if"]:
         lines += ["", "## What-if scenarios (hypothetical, non-mutating)", ""]
         for sc in report["what_if"]:
