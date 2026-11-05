@@ -575,3 +575,18 @@ Original request timestamps are unchanged. Compressed times still have float
 resolution: distinct interior times can coincide after rounding. This remains
 a hypothetical timing scenario, not a promise about provider routing or safe
 rescheduling of dependent requests.
+
+### Duplicate seed cohorts
+
+Duplicate search checks full minimum-length token equality before choosing a
+seed's extension anchor. A shorter or divergent early occurrence no longer
+hides a longer matching pair later in the log or later in the same message.
+Hash collisions still require exact token equality. Equal-run memoization is
+shared with extension and remains capped at 4,096 alignments.
+
+This improves seed selection, not exhaustive overlap reporting. The shingle
+index budget, one occurrence per message within a candidate, greedy suppression
+and top-N limit still apply. Many distinct continuations of one seed can require
+pairwise comparisons; the index budget is not a runtime or memory ceiling for
+tokenization or candidate processing. Coverage reports describe indexed
+windows, not proof that every duplicate block was returned.
