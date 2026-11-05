@@ -51,6 +51,7 @@ import json
 import math
 from collections import Counter
 from dataclasses import asdict, dataclass
+from fractions import Fraction
 from typing import Any, Dict, List, Optional, Tuple
 
 from .jsoninput import DuplicateJSONMember, unique_object
@@ -81,6 +82,25 @@ def _num(v: Any) -> Optional[float]:
         return None
 
 
+def _usage_num(value: Any) -> Optional[Fraction]:
+    """Exact arithmetic over accepted represented finite numbers, not costs.
+
+    Keep the existing finite-float-range input contract, but do not round an
+    accepted JSON integer before checking a one-token accounting tolerance.
+    Floats retain their represented binary value, not unavailable wire digits.
+    """
+    return Fraction(value) if _num(value) is not None else None
+
+
+def _usage_display(value: Fraction) -> str:
+    if value.denominator == 1:
+        return str(value.numerator)
+    try:
+        return format(float(value), 'g')
+    except OverflowError:
+        return str(value)
+
+
 def _is_litellm_spendlog(obj: Dict[str, Any]) -> bool:
     # Two LiteLLM export shapes share the same accounting semantics:
     # SpendLogs rows (request_id + spend) and standard-logging-payload
@@ -109,22 +129,22 @@ def _is_langfuse_observation(obj: Dict[str, Any]) -> bool:
     return "usageDetails" in obj or "usage_details" in obj
 
 
-def _usage_triple(obj: Dict[str, Any]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+def _usage_triple(obj: Dict[str, Any]) -> Tuple[Optional[Fraction], Optional[Fraction], Optional[Fraction]]:
     """(prompt, completion, total) token numbers from any of the supported
     record shapes; None where absent or non-numeric."""
     if _is_litellm_spendlog(obj):
-        return (_num(obj.get("prompt_tokens")),
-                _num(obj.get("completion_tokens")),
-                _num(obj.get("total_tokens")))
+        return (_usage_num(obj.get("prompt_tokens")),
+                _usage_num(obj.get("completion_tokens")),
+                _usage_num(obj.get("total_tokens")))
     if _is_helicone_row(obj):
-        return (_num(obj.get("prompt_tokens")),
-                _num(obj.get("completion_tokens")),
+        return (_usage_num(obj.get("prompt_tokens")),
+                _usage_num(obj.get("completion_tokens")),
                 None)
     details = obj.get("usageDetails") or obj.get("usage_details") or {}
     if isinstance(details, dict):
-        prompt = _num(details.get("input"))
-        completion = _num(details.get("output"))
-        total = _num(details.get("total"))
+        prompt = _usage_num(details.get("input"))
+        completion = _usage_num(details.get("output"))
+        total = _usage_num(details.get("total"))
         return prompt, completion, total
     return None, None, None
 
@@ -150,20 +170,20 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
     if prompt is not None and completion is not None and total is not None:
         gap = total - (prompt + completion)
         if abs(gap) > 1:
-            cache_extra = 0.0
+            cache_extra = Fraction(0)
             for k in ("cache_read_input_tokens", "cache_creation_input_tokens"):
-                cache_extra += _num(obj.get(k)) or 0.0
+                cache_extra += _usage_num(obj.get(k)) or Fraction(0)
             details = obj.get("usageDetails") or obj.get("usage_details")
             if isinstance(details, dict):
                 for k, v in details.items():
                     if "cache" in k:
-                        cache_extra += _num(v) or 0.0
+                        cache_extra += _usage_num(v) or Fraction(0)
             if not (cache_extra > 0 and abs(gap - cache_extra) <= 1):
                 findings.append(Finding(
                     "usage_sum_mismatch", line, rid,
-                    f"total_tokens={total:g} but prompt+completion="
-                    f"{prompt + completion:g} (prompt={prompt:g}, "
-                    f"completion={completion:g}). Assumes the OpenAI/LiteLLM "
+                    f"total_tokens={_usage_display(total)} but prompt+completion="
+                    f"{_usage_display(prompt + completion)} (prompt={_usage_display(prompt)}, "
+                    f"completion={_usage_display(completion)}). Assumes the OpenAI/LiteLLM "
                     "usage shape (total = prompt + completion, detail fields "
                     "are subsets); if this record's schema counts tokens "
                     "outside that sum, verify the schema before treating "
@@ -222,7 +242,7 @@ def check_record(obj: Dict[str, Any], line: int) -> List[Finding]:
     if spend == 0.0 and billed_tokens and billed_tokens > 0 and not failed:
         findings.append(Finding(
             "zero_spend_with_usage", line, rid,
-            f"spend=0 on a non-error call with {billed_tokens:g} usage "
+            f"spend=0 on a non-error call with {_usage_display(billed_tokens)} usage "
             "tokens; budgets enforce against spend, so such records are "
             "uncounted. Also legitimate for zero-priced models, fully "
             "cached calls billed at $0, or fully discounted calls - "
