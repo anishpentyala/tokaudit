@@ -31,6 +31,19 @@ class DuplicateBlock:
         return self.token_count * max(len(self.occurrences) - 1, 0)
 
 
+@dataclass
+class DuplicateSearchResult:
+    """Search coverage for the bounded shingle index, not proof of completeness."""
+    blocks: List[DuplicateBlock]
+    indexed_shingles: int
+    eligible_shingles: int
+    max_shingles: int
+
+    @property
+    def index_complete(self) -> bool:
+        return self.indexed_shingles == self.eligible_shingles
+
+
 def find_duplicates(
     requests: List[Request],
     encode: Callable[[str], List[int]],
@@ -39,17 +52,37 @@ def find_duplicates(
     top: int = 10,
     max_shingles: int = 500_000,
 ) -> List[DuplicateBlock]:
+    """Compatibility list API; use analyze_duplicates for index coverage."""
+    return analyze_duplicates(requests, encode, min_tokens, shingle, top,
+                              max_shingles).blocks
+
+
+def analyze_duplicates(
+    requests: List[Request],
+    encode: Callable[[str], List[int]],
+    min_tokens: int = 128,
+    shingle: int = 50,
+    top: int = 10,
+    max_shingles: int = 500_000,
+) -> DuplicateSearchResult:
+    for label, value in (("min_tokens", min_tokens), ("shingle", shingle),
+                         ("top", top), ("max_shingles", max_shingles)):
+        minimum = 0 if label == "max_shingles" else 1
+        if type(value) is not int or value < minimum:
+            raise ValueError(f"{label} must be an integer >= {minimum}")
     index: Dict[int, List[Tuple[int, int, int]]] = {}
     tokenized: List[List[List[int]]] = []
     seen = 0
+    eligible_shingles = 0
 
     for ridx, req in enumerate(requests):
         per_msg: List[List[int]] = []
         for midx, msg in enumerate(req.messages):
             toks = encode(msg.text)
             per_msg.append(toks)
-            if shingle <= 0 or len(toks) < shingle:
+            if len(toks) < shingle:
                 continue
+            eligible_shingles += len(toks) - shingle + 1
             for start in range(0, len(toks) - shingle + 1):
                 if seen >= max_shingles:
                     break
@@ -119,4 +152,4 @@ def find_duplicates(
         accepted_sets.append(occ_set)
         if len(accepted) >= top:
             break
-    return accepted
+    return DuplicateSearchResult(accepted, seen, eligible_shingles, max_shingles)
