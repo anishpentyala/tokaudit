@@ -85,6 +85,8 @@ def build_report(
             {
                 "tokens": d.token_count,
                 "occurrences": len(d.occurrences),
+                "distinct_requests": d.distinct_requests,
+                "request_indices": d.request_indices,
                 "repeated_tokens": d.repeated_tokens,
                 "requests": sorted({rid for rid, _ in d.occurrences}),
                 **({} if omit_content_previews else {"preview": d.preview}),
@@ -280,7 +282,8 @@ def to_markdown(report: Dict) -> str:
     if report["duplicate_blocks"]:
         for d in report["duplicate_blocks"]:
             lines.append(
-                f"- ~{d['tokens']} tokens x {d['occurrences']} requests "
+                f"- ~{d['tokens']} tokens x {d['occurrences']} message occurrences "
+                f"across {d.get('distinct_requests', len(d['requests']))} request records "
                 f"({d['repeated_tokens']} repeated tokens)"
                 + (f": \"{d['preview']}\"" if 'preview' in d else ": content preview omitted")
             )
