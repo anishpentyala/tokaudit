@@ -10,6 +10,7 @@ collapsed, or rescheduled depends on the caller, which the log cannot see.
 from __future__ import annotations
 
 from dataclasses import replace
+from fractions import Fraction
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .logs import Request
@@ -78,7 +79,11 @@ def _dense(
             fam = rules.resolve_family(r.model).family
         if fam.savings_supported:
             ttls.append(float(fam.ttl_seconds))
-    span = max(r.ts for r in timed) - min(r.ts for r in timed)
+    t0 = min(r.ts for r in timed)
+    t1 = max(r.ts for r in timed)
+    # Finite endpoints may have a difference beyond the float range. Exact
+    # ratios also avoid adding a tiny compressed gap back to a huge epoch.
+    span = Fraction(t1) - Fraction(t0)
     if not ttls or span <= 0 or span <= min(ttls):
         sim = simulate(requests, encode, rules, force_family=force_family,
                        isolate_sessions=isolate_sessions)
@@ -92,9 +97,10 @@ def _dense(
                       "the as-is simulation."],
         }
 
-    t0 = min(r.ts for r in timed)
-    scale = min(ttls) / span
-    compressed = [replace(r, ts=t0 + (r.ts - t0) * scale) for r in requests]
+    lifetime = min(ttls)
+    scale = Fraction(lifetime) / span
+    compressed = [replace(r, ts=float((Fraction(r.ts) - Fraction(t0)) * scale))
+                  for r in requests]
     sim = simulate(compressed, encode, rules, force_family=force_family,
                    isolate_sessions=isolate_sessions)
     return {
@@ -103,7 +109,8 @@ def _dense(
         "result": _summarize(sim),
         "caveats": caveats,
         "notes": [
-            f"Timestamps rescaled by {scale:.4g}x (span {span:.0f}s -> "
+            f"Timestamps rebased to zero and rescaled by {float(scale):.4g}x "
+            f"(original endpoints {t0:.4g}s to {t1:.4g}s -> "
             f"{min(ttls):.0f}s, the shortest cache lifetime in use); request "
             "order and relative spacing preserved."
         ],
