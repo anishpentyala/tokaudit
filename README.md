@@ -40,6 +40,30 @@ seed 20261029; not real workload data):
 | code | 60 | 45 | 14.8% | 12.1% | 23.3% | 27.8% |
 | json | 60 | 340 | 20.1% | 22.2% | 26.2% | 31.9% |
 
+## Anthropic text-block cache boundaries
+
+For text-only Anthropic requests, explicit `cache_control` markers end at
+that content block, even when more text follows in the same message. The
+simulator writes only at designated blocks. Reads search prior writes at up
+to 20 block positions per breakpoint, counting the breakpoint itself. A
+stable prefix is not a hit unless an earlier request actually wrote there.
+A second breakpoint opens another lookback window. The `dedup` scenario
+keeps different text-block layouts and marker positions separate.
+
+Requests without block markers retain the labeled automatic-caching scenario
+assumption, not a claim that the logged request opted in. Canonical token
+counts remain approximate relative to provider chat templates. This does not
+model tool/image/thinking blocks, provider routing, concurrent requests or
+mixed per-block TTLs. The existing configured cache lifetime and rates still
+apply; `--what-if anthropic-1h` is a separate scenario. Other providers keep
+the existing message-boundary approximation. If the selected tokenizer merges
+across a canonical block boundary so an eligible prefix has more tokens than
+a later prefix, analysis stops before writing a report rather than inventing
+or clipping cache accounting.
+
+Protocol source checked 2026-11-06:
+https://platform.claude.com/docs/en/build-with-claude/prompt-caching
+
 ## Accounting integrity checks
 
 `tokaudit analyze` finds token waste. `tokaudit integrity` answers a
