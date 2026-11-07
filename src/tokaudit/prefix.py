@@ -4,16 +4,16 @@ Model (documented approximation, not a provider oracle):
 
 - Each request is rendered canonically (see logs.py) and tokenized.
 - Eligible breakpoints are cumulative token counts at message boundaries
-  that meet the provider's minimum cacheable length. Explicit breakpoints
-  recorded in the log restrict writes to the marked boundaries; otherwise
-  one implicit write is assumed at the full prompt (implicit OpenAI
-  caching / Anthropic top-level automatic caching).
+  (individual text blocks for Anthropic) meeting the provider minimum.
+  Explicit markers restrict writes; otherwise one implicit write is assumed
+  at the full prompt (OpenAI caching / Anthropic automatic-cache scenario).
 - A read hits when an unexpired cached entry is a prefix of the request;
   the longest match wins. Reads are charged at ``read_multiplier``.
 - Writes are charged on the *delta*: tokens beyond the longest cached
   prefix up to the furthest new breakpoint, at ``write_multiplier``.
-  Intermediate boundary entries become readable without extra charge
-  (approximation of provider breakpoint selection).
+  Anthropic writes only designated text blocks; reads look back at most 20
+  blocks per breakpoint for prior writes. Other providers retain the
+  intermediate-message-boundary approximation.
 - Entries expire ``ttl_seconds`` after writing; providers with
   ``refresh_on_read`` extend coverage on reads by ``read_refresh_seconds``
   (or the write TTL when unspecified), never shortening existing coverage.
@@ -36,7 +36,7 @@ from .rules import ProviderRules
 
 
 TokenKey = Union[bytes, Tuple[int, ...]]
-PrefixKey = Tuple[TokenKey, Tuple[Tuple[str, int], ...]]
+PrefixKey = Tuple[TokenKey, tuple]
 
 
 def _prefix_key(tokens: List[int]) -> TokenKey:
@@ -98,6 +98,15 @@ def simulate(
     if no_ts:
         notes.append(
             "Some requests lack timestamps; treated as arriving in log order with nothing expiring."
+        )
+    if rules.name == "anthropic":
+        notes.append(
+            "Anthropic text-only model: writes only at designated blocks; reads "
+            "search prior writes within 20 block positions per breakpoint. "
+            "Configured lifetime/rates still apply, not mixed per-block TTLs; "
+            "provider routing and concurrency are not modeled. "
+            "Protocol checked 2026-11-06: "
+            "https://platform.claude.com/docs/en/build-with-claude/prompt-caching"
         )
     if not rules.enabled_by_default:
         notes.append(
@@ -172,25 +181,56 @@ def simulate(
         hash_read = read_marks.setdefault(namespace, {})
         cache_generations = generations.setdefault(namespace, {})
 
-        # Boundary k is the prefix covering the first k+1 messages. Keys
-        # preserve exact token equality; a raw hash alone is not a cache hit.
+        # Anthropic retains text-block boundaries inside each message.
+        # Other providers retain the existing message-boundary approximation.
+        # Keys preserve tokens and structural layout, not just a raw hash.
         parts = [f"<{m.role}>\n{m.text}" for m in req.messages]
-        bounds: List[Tuple[int, PrefixKey]] = []  # (token_count, prefix_key)
-        for k in range(len(parts)):
-            prefix_text = "\n".join(parts[: k + 1])
-            toks = encode(prefix_text)
-            # Token content alone cannot distinguish literal role-header
-            # text from real message boundaries in the canonical render.
-            # Keep role and character length per message, without duplicating
-            # all prompt text in every prefix key. Counts stay unchanged.
-            layout = tuple((m.role, len(m.text)) for m in req.messages[: k + 1])
-            bounds.append((len(toks), (_prefix_key(toks), layout)))
-        total = bounds[-1][0] if bounds else 0
+        bounds: List[Tuple[int, PrefixKey]] = []
+        marked_indices = []
+        block_mode = rules.name == "anthropic"
+        layout = []
+        for k, message in enumerate(req.messages):
+            ends = ((message.block_ends if message.block_ends is not None
+                     else (len(message.text),)) if block_mode else (len(message.text),))
+            for block_index, end in enumerate(ends):
+                prefix_text = "\n".join(parts[:k] + [f"<{message.role}>\n{message.text[:end]}"])
+                toks = encode(prefix_text)
+                prefix_layout = tuple(layout + [(message.role, end, tuple(ends[:block_index + 1]))])
+                bounds.append((len(toks), (_prefix_key(toks), prefix_layout)))
+                if k in req.breakpoints and (
+                    not block_mode or block_index in message.cache_points
+                    or (not message.cache_points and block_index == len(ends) - 1)
+                ):
+                    marked_indices.append(len(bounds) - 1)
+            layout.append((message.role, len(message.text), tuple(ends)))
+        total = len(encode(req.canonical())) if req.messages else 0
         eligible = [(b, h) for b, h in bounds if b >= min_pref]
+        counts = [b for b, _ in bounds] + [total]
+        if block_mode and any(a >= min_pref and a > b
+                              for a, b in zip(counts, counts[1:])):
+            # Some tokenizers merge across a canonical text-block boundary.
+            # Never charge a cached prefix longer than the later prompt or
+            # silently clip it into a made-up accounting result.
+            raise SystemExit(
+                "Anthropic canonical token counts decrease across content "
+                "blocks; cannot simulate block-cache costs with this tokenizer"
+            )
+        # Anthropic writes at designated blocks only. Reads inspect up to 20
+        # block positions per breakpoint, looking for prior actual writes.
+        # No markers retains the existing labeled automatic-cache scenario.
+        if not req.breakpoints and bounds:
+            marked_indices = [len(bounds) - 1]
+        if block_mode:
+            marked_indices = marked_indices[:rules.max_explicit_breakpoints]
+            read_indices = {j for i in marked_indices for j in range(max(0, i - 19), i + 1)}
+            read_bounds = [bound for j, bound in enumerate(bounds)
+                           if j in read_indices and bound[0] >= min_pref]
+        else:
+            read_bounds = eligible
 
         # Longest unexpired cached prefix.
         read_tokens = 0
-        for b, h in sorted(eligible, key=lambda bound: bound[0], reverse=True):
+        for b, h in sorted(read_bounds, key=lambda bound: bound[0], reverse=True):
             expiry = cache.get(h)
             if expiry is not None and expiry >= ts:
                 read_tokens = b
@@ -202,8 +242,8 @@ def simulate(
                 break
 
         # Choose write breakpoints.
-        if req.breakpoints:
-            marked = {bounds[idx] for idx in req.breakpoints if idx < len(bounds)}
+        if block_mode or req.breakpoints:
+            marked = {bounds[idx] for idx in marked_indices}
             write_bounds = sorted(b for b, h in marked if b >= min_pref and b > read_tokens)
             write_bounds = write_bounds[: rules.max_explicit_breakpoints]
         else:
@@ -214,9 +254,10 @@ def simulate(
         if write_bounds:
             furthest = max(write_bounds)
             written_delta = furthest - read_tokens
-            # Store every eligible boundary up to the furthest write so later
-            # requests can match shorter shared prefixes (approximation).
-            for b, h in eligible:
+            # Anthropic stores only designated block entries. Other providers
+            # keep the existing intermediate-boundary approximation.
+            stored_bounds = marked if block_mode else eligible
+            for b, h in stored_bounds:
                 if read_tokens < b <= furthest:
                     expiry = cache.get(h)
                     if expiry is None or expiry < ts:

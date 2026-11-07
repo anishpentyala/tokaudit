@@ -29,7 +29,7 @@ import json
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .adapters import adapt
 
@@ -40,6 +40,10 @@ from .jsoninput import DuplicateJSONMember, unique_object
 class Message:
     role: str
     text: str
+    # Text-block ends and marker positions preserve explicit cache scope.
+    # None means one text block, including legacy Python API messages.
+    block_ends: Optional[Tuple[int, ...]] = None
+    cache_points: Tuple[int, ...] = ()
 
 
 @dataclass
@@ -103,6 +107,19 @@ def _content_to_text(content: Any) -> str:
     raise ValueError("unsupported message content: expected a string or text-part list")
 
 
+def _message(role: str, content: Any) -> Message:
+    text = _content_to_text(content)
+    if not isinstance(content, list):
+        return Message(role, text)
+    ends, points, end = [], [], 0
+    for index, part in enumerate(content):
+        end += len(part["text"])
+        ends.append(end)
+        if "cache_control" in part or "prompt_cache_breakpoint" in part:
+            points.append(index)
+    return Message(role, text, tuple(ends), tuple(points))
+
+
 def _breakpoint_marked(content: Any) -> bool:
     if isinstance(content, list):
         for part in content:
@@ -155,7 +172,7 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
 
     system = obj.get("system")
     if system is not None:
-        messages.append(Message(role="system", text=_content_to_text(system)))
+        messages.append(_message("system", system))
         if _breakpoint_marked(system):
             breakpoints.append(len(messages) - 1)
 
@@ -183,7 +200,7 @@ def parse_record(obj: Dict[str, Any], idx: int = 0) -> Request:
             if m.get(field) not in (None, [], {}):
                 raise ValueError(f"record {rid}: unsupported {field} message payload")
         messages.append(
-            Message(role=role, text=_content_to_text(m.get("content")))
+            _message(role, m.get("content"))
         )
         if _breakpoint_marked(m.get("content")):
             breakpoints.append(len(messages) - 1)

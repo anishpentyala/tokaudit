@@ -163,3 +163,24 @@ ordinary input or invalid recognized input/cache fields leave prompt coverage
 unknown; invalid recognized write fields leave write coverage unknown. It never
 uses total/output to backfill missing input. This is text/cache normalization,
 not a general inference of every possible Langfuse usage dimension.
+
+## Anthropic block writes and lookback, checked 2026-11-06
+
+Source: https://platform.claude.com/docs/en/build-with-claude/prompt-caching
+
+- "Cache writes occur only at your breakpoint."
+- "The system does not write entries for any earlier position."
+- "Cache reads look backward for entries that prior requests wrote."
+- "The system checks at most 20 positions for each breakpoint, counting the breakpoint itself as the first."
+
+Implementation scope: text-only content blocks, including internal message
+markers. Additional breakpoints open additional read windows. No provider-price
+or model-table changes. Tokens remain the existing canonical approximation,
+not provider-observed billed usage. No-marker requests retain the labeled
+automatic scenario. Tool/image/thinking blocks, mixed per-block TTLs, routing
+and concurrency are not modeled. Other providers retain their separate
+intermediate-message approximation. Tests are synthetic protocol controls.
+
+Tokenizer limitation: eligible canonical prefix counts must be nondecreasing.
+If merging across a content boundary decreases them, analysis stops before
+writing a report. This is a simulator limitation, not an invalid API request.

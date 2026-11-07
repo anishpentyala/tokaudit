@@ -54,6 +54,9 @@ def test_ttl_expiry_blocks_read():
 
 def test_anthropic_refresh_on_read_extends():
     reqs = [make_req("a", "one", 0.0), make_req("b", "two", 200.0), make_req("c", "three", 400.0)]
+    # Actual writes must exist at the stable prefix before a later hit.
+    for req in reqs:
+        req.breakpoints = [0]
     sim = simulate(reqs, ENC, ANTH)  # ttl 300, refresh keeps it alive
     assert sim.per_request[1].read > 0
     assert sim.per_request[2].read > 0
@@ -124,6 +127,8 @@ def test_anthropic_known_model_still_simulates():
                 ts=float(i * 60))
         for i in range(2)
     ]
+    for req in reqs:
+        req.breakpoints = [0]
     sim = simulate(reqs, ENC, rules)
     assert len(sim.per_request) == 2
     assert sim.per_request[1].read > 0
