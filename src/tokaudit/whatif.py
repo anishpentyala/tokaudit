@@ -148,7 +148,7 @@ def _dedup(
     kept: List[Request] = []
     dropped: List[str] = []
     for r in requests:
-        key = (r.model, tuple((m.role, m.text) for m in r.messages), r.cache_key, r.session_id,
+        key = (r.model, tuple((m.role, m.text, m.block_ends, m.cache_points) for m in r.messages), r.cache_key, r.session_id,
                tuple(r.breakpoints))
         if key in seen:
             dropped.append(r.rid)
