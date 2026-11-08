@@ -64,6 +64,16 @@ or clipping cache accounting.
 Protocol source checked 2026-11-06:
 https://platform.claude.com/docs/en/build-with-claude/prompt-caching
 
+### Cache identity in exported request bodies
+
+Helicone `request_body` and structured Langfuse `input` message objects retain
+represented `prompt_cache_key` and the generic `cache_key` alias, whether the
+body is an object or JSON-encoded text. The same native-key precedence as plain
+logs applies. Distinct keys stay separate in simulated cache reuse and exact
+request deduplication; absent keys keep the existing shared-namespace assumption.
+This does not infer a key from export metadata or recover a key omitted by the
+exporter. Other request settings and provider routing remain outside this fix.
+
 ## Accounting integrity checks
 
 `tokaudit analyze` finds token waste. `tokaudit integrity` answers a
