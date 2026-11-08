@@ -700,3 +700,22 @@ a new provider-specific role allowlist. Existing tool/function-role rejection
 is unchanged. This applies to message lists carried by the supported gateway
 adapters too. A mixed log stops at the invalid row before publishing a report;
 this is still a text-only audit, not complete provider request validation.
+
+### Duplicate finding locations
+
+Duplicate findings include `token_spans` for each retained occurrence. Each
+entry identifies the zero-based `request_index` in the analysis group's input
+order, its zero-based `message_index`, and a half-open `[token_start, token_end)`
+range in that message's selected-tokenizer output. Repeated request IDs remain
+disambiguated by position. These are token positions, not character offsets or
+original JSONL line numbers. Estimator positions use heuristic pseudo-tokens.
+
+The existing `preview` is the beginning of the first source message, which can
+be unrelated to the repeated substring. JSON labels this with `preview_scope:
+"source_message_start_not_matched_span"`; Markdown calls it source message
+context and prints the token locations separately. No decoding or exact text
+excerpt is inferred from token positions. `--omit-content-previews` still omits
+the raw text while retaining location metadata and its scope. That is not
+anonymization. Counts, matching, one-occurrence-per-message selection, greedy
+suppression and search-budget limits are unchanged; the ranges describe only
+returned occurrences, not an exhaustive list of every repetition.
