@@ -191,6 +191,14 @@ def _retain_content_fields(source: Dict[str, Any], target: Dict[str, Any]) -> No
             target[key] = source[key]
 
 
+def _retain_cache_identity(source: Dict[str, Any], target: Dict[str, Any]) -> None:
+    # These are represented request-body values, not inferred export metadata.
+    # Preserve both so parse_record applies the same precedence as plain logs.
+    for key in ("prompt_cache_key", "cache_key"):
+        if key in source:
+            target[key] = source[key]
+
+
 def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize a known export record to parse_record's input shape.
 
@@ -265,6 +273,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
             out["messages"] = inp
         elif isinstance(inp, dict) and isinstance(inp.get("messages"), list):
             _retain_content_fields(inp, out)
+            _retain_cache_identity(inp, out)
             out["messages"] = inp["messages"]
             if inp.get("system") is not None:
                 out["system"] = inp["system"]
@@ -300,6 +309,7 @@ def adapt(obj: Dict[str, Any]) -> Dict[str, Any]:
         }
         if isinstance(body, dict):
             _retain_content_fields(body, out)
+            _retain_cache_identity(body, out)
         if isinstance(body, dict) and isinstance(body.get("messages"), list):
             out["messages"] = body["messages"]
             if body.get("system") is not None:
