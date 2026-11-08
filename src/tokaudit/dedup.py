@@ -27,6 +27,9 @@ class DuplicateBlock:
     occurrences: List[Tuple[str, int]]  # (request id, message index)
     preview: str
     request_indices: List[int] = field(default_factory=list)
+    # Zero-based input request/message positions; half-open selected-encoder
+    # token ranges. No claim of character offsets or complete occurrence search.
+    token_spans: List[Dict[str, int]] = field(default_factory=list)
 
     @property
     def distinct_requests(self) -> int:
@@ -161,6 +164,7 @@ def analyze_duplicates(
         r0, m0, s0 = occs[0]
         good: List[Tuple[int, int, int]] = []  # (request position, midx, length)
         seen_occ = set()
+        starts = {}
         for ridx, midx, start in occs:
             if (ridx, midx) in seen_occ:
                 continue
@@ -168,6 +172,7 @@ def analyze_duplicates(
             length = equal_run((r0, m0, s0), (ridx, midx, start))
             if length >= min_tokens:
                 good.append((ridx, midx, length))
+                starts[(ridx, midx)] = start
         if len({g[0] for g in good}) < 2:
             continue
         min_len = min(g[2] for g in good)
@@ -179,6 +184,12 @@ def analyze_duplicates(
                 occurrences=occurrences,
                 preview=text[:100] + ("..." if len(text) > 100 else ""),
                 request_indices=[ridx for ridx, _, _ in good],
+                token_spans=[{
+                    "request_index": ridx,
+                    "message_index": midx,
+                    "token_start": starts[(ridx, midx)],
+                    "token_end": starts[(ridx, midx)] + min_len,
+                } for ridx, midx, _ in good],
             )
         )
 

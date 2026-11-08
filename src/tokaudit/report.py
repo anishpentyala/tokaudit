@@ -90,6 +90,8 @@ def build_report(
                 "occurrences": len(d.occurrences),
                 "distinct_requests": d.distinct_requests,
                 "request_indices": d.request_indices,
+                "token_spans": d.token_spans,
+                "preview_scope": "source_message_start_not_matched_span",
                 "repeated_tokens": d.repeated_tokens,
                 "requests": sorted({rid for rid, _ in d.occurrences}),
                 **({} if omit_content_previews else {"preview": d.preview}),
@@ -283,13 +285,22 @@ def to_markdown(report: Dict) -> str:
                      f"{coverage['eligible_shingles']:,} eligible windows ({state}).")
         lines.append(coverage["note"])
     if report["duplicate_blocks"]:
+        lines.append("Locations use zero-based request-record and message positions within this "
+                     "analysis group and half-open token ranges for the selected tokenizer, not "
+                     "character offsets. Source message context is not the matched-span preview.")
+        lines.append("")
         for d in report["duplicate_blocks"]:
             lines.append(
                 f"- ~{d['tokens']} tokens x {d['occurrences']} message occurrences "
                 f"across {d.get('distinct_requests', len(d['requests']))} request records "
                 f"({d['repeated_tokens']} repeated tokens)"
-                + (f": \"{d['preview']}\"" if 'preview' in d else ": content preview omitted")
+                + (f": source message context \"{d['preview']}\"" if 'preview' in d else ": content preview omitted")
             )
+            for span in d.get("token_spans", []):
+                lines.append(
+                    f"    - Request record {span['request_index']}, message {span['message_index']}: "
+                    f"tokens [{span['token_start']}, {span['token_end']})"
+                )
     else:
         if coverage is not None and not coverage["index_complete"]:
             lines.append("No repeated blocks found in the indexed subset; "
