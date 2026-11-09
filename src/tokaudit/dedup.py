@@ -193,18 +193,24 @@ def analyze_duplicates(
             )
         )
 
-    # Suppress overlapping/nested reports: keep the largest blocks first,
-    # drop blocks whose (rid, midx) set is a subset of an accepted block's.
+    # Suppress overlapping/nested reports: keep the largest blocks first.
+    # Message membership alone cannot show overlap: independent shared regions
+    # in the same messages should remain separate findings. Suppress only when
+    # every candidate occurrence overlaps a span in one accepted finding.
     blocks.sort(key=lambda b: b.repeated_tokens, reverse=True)
     accepted: List[DuplicateBlock] = []
-    accepted_sets: List[set] = []
+    accepted_spans: List[Dict[Tuple[int, int], Tuple[int, int]]] = []
     for b in blocks:
-        occ_set = (set(zip(b.request_indices, (midx for _, midx in b.occurrences)))
-                   if b.request_indices else set(b.occurrences))
-        if any(occ_set <= prev for prev in accepted_sets):
+        spans = {(span["request_index"], span["message_index"]):
+                 (span["token_start"], span["token_end"])
+                 for span in b.token_spans}
+        if any(all(key in previous and start < previous[key][1]
+                   and previous[key][0] < end
+                   for key, (start, end) in spans.items())
+               for previous in accepted_spans):
             continue
         accepted.append(b)
-        accepted_sets.append(occ_set)
+        accepted_spans.append(spans)
         if len(accepted) >= top:
             break
     return DuplicateSearchResult(accepted, seen, eligible_shingles, max_shingles)
