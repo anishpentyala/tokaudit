@@ -736,3 +736,21 @@ the raw text while retaining location metadata and its scope. That is not
 anonymization. Counts, matching, one-occurrence-per-message selection, greedy
 suppression and search-budget limits are unchanged; the ranges describe only
 returned occurrences, not an exhaustive list of every repetition.
+
+### Mixed timestamps preserve log order
+
+If any request in a provider simulation has no usable timestamp, the whole
+simulation preserves input log order and disables cache expiry. Timestamped
+requests are not moved ahead of untimed requests. This prevents a later cache
+write from supplying an earlier request's read. All-timestamped logs still use
+stable chronological order and the existing exact expiry checks.
+
+This can change per-request cache reads, write reuse and estimated savings on
+mixed-timestamp logs, especially with explicit Anthropic text-block markers.
+It is a correction to the offline simulation's ordering assumption, not
+observed provider usage or a recovered chronology. Split or repair incomplete
+logs when actual request timing matters. The input records are not changed.
+The synthetic `examples/mixed-timestamps.jsonl` illustrates an untimed long
+request before a timestamped short-prefix request; neither can read a prior
+marked prefix in that log order. Cache rules and tokenizer assumptions still
+apply.
