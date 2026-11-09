@@ -4,6 +4,12 @@
 
 ### Fixed
 
+- Duplicate search keeps disjoint shared regions in the same messages as
+  separate findings instead of suppressing them by message membership alone.
+  Reports can contain more blocks. Greedy overlap suppression, one occurrence
+  per message within a candidate, index budgets and top-N limits still apply;
+  this is not exhaustive occurrence coverage or a billing estimate.
+
 - OpenAI 12-hour what-if reads now extend coverage only to the later of
   existing expiry and read + 30 minutes, rather than restarting 12 hours.
   Added optional `read_refresh_seconds` for custom rules; omitted values

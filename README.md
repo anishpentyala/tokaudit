@@ -610,6 +610,23 @@ resolution: distinct interior times can coincide after rounding. This remains
 a hypothetical timing scenario, not a promise about provider routing or safe
 rescheduling of dependent requests.
 
+### Disjoint duplicate regions
+
+Greedy suppression compares half-open token spans, not just which messages
+contain a match. Separate repeated regions in the same messages can therefore
+appear as separate findings, including when exported request IDs repeat.
+A candidate is suppressed only when every one of its occurrences overlaps a
+corresponding span in one previously accepted finding. Touching spans do not
+overlap; a new message occurrence is not suppressed by another message's span.
+Larger repeated-volume findings still come first, and the top-N limit and
+bounded index still apply.
+
+This does not enumerate every occurrence or maximize disjoint token coverage.
+Partially overlapping candidates can still be suppressed, and one occurrence
+per message within a candidate remains the search model. Reported repeated
+volume is not a separate-request count or billed savings. Existing reports may
+contain more findings when separate regions previously shared message members.
+
 ### Duplicate seed cohorts
 
 Duplicate search checks full minimum-length token equality before choosing a
