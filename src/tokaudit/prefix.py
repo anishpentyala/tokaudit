@@ -92,8 +92,12 @@ def simulate(
     force_family: Optional[str] = None,
     isolate_sessions: bool = False,
 ) -> SimulationResult:
-    ordered = sorted(requests, key=lambda r: (r.ts is None, r.ts or 0.0))
-    no_ts = any(r.ts is None for r in ordered)
+    no_ts = any(r.ts is None for r in requests)
+    # A partial chronology cannot position untimed requests. Apply the
+    # documented log-order/no-expiry assumption to the whole simulation,
+    # rather than moving timed writes ahead of earlier untimed requests.
+    ordered = (list(requests) if no_ts else
+               sorted(requests, key=lambda r: r.ts))
     notes: List[str] = []
     if no_ts:
         notes.append(
